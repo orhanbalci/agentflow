@@ -1,6 +1,12 @@
 [package]
 name = "agentflow"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "An AI agent flow framework built with Rust and actors, inspired by Pipecat"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/orhanbalci/agentflow"
+keywords = ["ai", "agents", "pipeline", "actors", "llm"]
+categories = ["multimedia", "web-programming", "concurrency"]
 
 [dependencies]
+ractor = "0.15.7"
