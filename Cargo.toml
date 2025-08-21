@@ -9,4 +9,8 @@ keywords = ["ai", "agents", "pipeline", "actors", "llm"]
 categories = ["multimedia", "web-programming", "concurrency"]
 
 [dependencies]
-ractor = "0.15.7"
+tokio = { version = "1.47.1", features = ["macros", "time", "sync", "rt-multi-thread"] }
+uuid = { version = "1.18.0", features = ["v4"] }
+log = "0.4"
+tracing = "0.1"
+thiserror = "1.0"
