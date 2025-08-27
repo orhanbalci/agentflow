@@ -11,6 +11,7 @@ categories = ["multimedia", "web-programming", "concurrency"]
 [dependencies]
 tokio = { version = "1.47.1", features = ["macros", "time", "sync", "rt-multi-thread"] }
 uuid = { version = "1.18.0", features = ["v4"] }
+async-trait = "0.1"
 log = "0.4"
 tracing = "0.1"
 thiserror = "1.0"

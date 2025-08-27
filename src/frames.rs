@@ -633,9 +633,32 @@ impl Frame for UserStoppedSpeakingFrame {
     fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
 }
 
-//
-// Control Frames
-//
+/// Frame indicating start of frame processing interruption
+#[derive(Debug, Clone)]
+pub struct StartInterruptionFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl StartInterruptionFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("StartInterruptionFrame"),
+        }
+    }
+}
+
+impl Frame for StartInterruptionFrame {
+    fn id(&self) -> u64 { self.system_frame.id() }
+    fn name(&self) -> &str { self.system_frame.name() }
+    fn pts(&self) -> Option<u64> { self.system_frame.pts() }
+    fn set_pts(&mut self, pts: Option<u64>) { self.system_frame.set_pts(pts) }
+    fn metadata(&self) -> &HashMap<String, String> { self.system_frame.metadata() }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.system_frame.metadata_mut() }
+    fn transport_source(&self) -> Option<&str> { self.system_frame.transport_source() }
+    fn set_transport_source(&mut self, source: Option<String>) { self.system_frame.set_transport_source(source) }
+    fn transport_destination(&self) -> Option<&str> { self.system_frame.transport_destination() }
+    fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
+}
 
 /// Frame indicating pipeline has ended and should shut down
 #[derive(Debug, Clone)]
@@ -735,6 +758,7 @@ pub enum FrameType {
     Start(StartFrame),
     Cancel(CancelFrame),
     Error(ErrorFrame),
+    StartInterruption(StartInterruptionFrame),
     UserStartedSpeaking(UserStartedSpeakingFrame),
     UserStoppedSpeaking(UserStoppedSpeakingFrame),
     
@@ -756,6 +780,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.id(),
             FrameType::UserStartedSpeaking(f) => f.id(),
             FrameType::UserStoppedSpeaking(f) => f.id(),
+            FrameType::StartInterruption(f) => f.id(),
             FrameType::End(f) => f.id(),
             FrameType::LLMFullResponseStart(f) => f.id(),
             FrameType::LLMFullResponseEnd(f) => f.id(),
@@ -773,6 +798,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.name(),
             FrameType::UserStartedSpeaking(f) => f.name(),
             FrameType::UserStoppedSpeaking(f) => f.name(),
+            FrameType::StartInterruption(f) => f.name(),
             FrameType::End(f) => f.name(),
             FrameType::LLMFullResponseStart(f) => f.name(),
             FrameType::LLMFullResponseEnd(f) => f.name(),
@@ -790,6 +816,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.pts(),
             FrameType::UserStartedSpeaking(f) => f.pts(),
             FrameType::UserStoppedSpeaking(f) => f.pts(),
+            FrameType::StartInterruption(f) => f.pts(),
             FrameType::End(f) => f.pts(),
             FrameType::LLMFullResponseStart(f) => f.pts(),
             FrameType::LLMFullResponseEnd(f) => f.pts(),
@@ -807,6 +834,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.set_pts(pts),
             FrameType::UserStartedSpeaking(f) => f.set_pts(pts),
             FrameType::UserStoppedSpeaking(f) => f.set_pts(pts),
+            FrameType::StartInterruption(f) => f.set_pts(pts),
             FrameType::End(f) => f.set_pts(pts),
             FrameType::LLMFullResponseStart(f) => f.set_pts(pts),
             FrameType::LLMFullResponseEnd(f) => f.set_pts(pts),
@@ -824,6 +852,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.metadata(),
             FrameType::UserStartedSpeaking(f) => f.metadata(),
             FrameType::UserStoppedSpeaking(f) => f.metadata(),
+            FrameType::StartInterruption(f) => f.metadata(),
             FrameType::End(f) => f.metadata(),
             FrameType::LLMFullResponseStart(f) => f.metadata(),
             FrameType::LLMFullResponseEnd(f) => f.metadata(),
@@ -841,6 +870,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.metadata_mut(),
             FrameType::UserStartedSpeaking(f) => f.metadata_mut(),
             FrameType::UserStoppedSpeaking(f) => f.metadata_mut(),
+            FrameType::StartInterruption(f) => f.metadata_mut(),
             FrameType::End(f) => f.metadata_mut(),
             FrameType::LLMFullResponseStart(f) => f.metadata_mut(),
             FrameType::LLMFullResponseEnd(f) => f.metadata_mut(),
@@ -858,6 +888,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.transport_source(),
             FrameType::UserStartedSpeaking(f) => f.transport_source(),
             FrameType::UserStoppedSpeaking(f) => f.transport_source(),
+            FrameType::StartInterruption(f) => f.transport_source(),
             FrameType::End(f) => f.transport_source(),
             FrameType::LLMFullResponseStart(f) => f.transport_source(),
             FrameType::LLMFullResponseEnd(f) => f.transport_source(),
@@ -875,6 +906,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.set_transport_source(source),
             FrameType::UserStartedSpeaking(f) => f.set_transport_source(source),
             FrameType::UserStoppedSpeaking(f) => f.set_transport_source(source),
+            FrameType::StartInterruption(f) => f.set_transport_source(source),
             FrameType::End(f) => f.set_transport_source(source),
             FrameType::LLMFullResponseStart(f) => f.set_transport_source(source),
             FrameType::LLMFullResponseEnd(f) => f.set_transport_source(source),
@@ -892,6 +924,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.transport_destination(),
             FrameType::UserStartedSpeaking(f) => f.transport_destination(),
             FrameType::UserStoppedSpeaking(f) => f.transport_destination(),
+            FrameType::StartInterruption(f) => f.transport_destination(),
             FrameType::End(f) => f.transport_destination(),
             FrameType::LLMFullResponseStart(f) => f.transport_destination(),
             FrameType::LLMFullResponseEnd(f) => f.transport_destination(),
@@ -909,6 +942,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.set_transport_destination(destination),
             FrameType::UserStartedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::UserStoppedSpeaking(f) => f.set_transport_destination(destination),
+            FrameType::StartInterruption(f) => f.set_transport_destination(destination),
             FrameType::End(f) => f.set_transport_destination(destination),
             FrameType::LLMFullResponseStart(f) => f.set_transport_destination(destination),
             FrameType::LLMFullResponseEnd(f) => f.set_transport_destination(destination),
@@ -928,6 +962,7 @@ impl fmt::Display for FrameType {
             FrameType::Error(frame) => frame.fmt(f),
             FrameType::UserStartedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::UserStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
+            FrameType::StartInterruption(frame) => write!(f, "{}", frame.name()),
             FrameType::End(frame) => write!(f, "{}", frame.name()),
             FrameType::LLMFullResponseStart(frame) => write!(f, "{}", frame.name()),
             FrameType::LLMFullResponseEnd(frame) => write!(f, "{}", frame.name()),
