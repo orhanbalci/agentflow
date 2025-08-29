@@ -47,7 +47,7 @@ pub struct TaskManager {
 impl TaskManager {
     pub fn new(config: TaskManagerConfig) -> Self {
         let (shutdown_tx, _) = broadcast::channel(16);
-        
+
         Self {
             tasks: Arc::new(RwLock::new(HashMap::new())),
             task_handles: Arc::new(RwLock::new(HashMap::new())),
@@ -68,7 +68,7 @@ impl TaskManager {
     {
         let task_id = Uuid::new_v4();
         let mut shutdown_rx = self.shutdown_tx.subscribe();
-        
+
         // Setup watchdog if enabled
         let (watchdog_tx, watchdog_rx) = if watchdog_config
             .as_ref()
@@ -99,7 +99,7 @@ impl TaskManager {
             let task_name_for_spawn = task_name.clone();
             async move {
                 info!("Task '{}' ({}) started", task_name_for_spawn, task_id);
-                
+
                 tokio::select! {
                     _ = future(context) => {
                         info!("Task '{}' ({}) completed normally", task_name_for_spawn, task_id);
@@ -170,7 +170,7 @@ impl TaskManager {
                     None
                 }
             };
-            
+
             if let Some(_) = join_result {
                 let mut tasks = tasks_cleanup.write().await;
                 if let Some(_) = tasks.remove(&cleanup_task_id) {
@@ -242,12 +242,10 @@ impl TaskManager {
 
         if let Some(join_handle) = join_handle {
             match timeout_duration {
-                Some(dur) => {
-                    match timeout(dur, join_handle).await {
-                        Ok(result) => result.map_err(|e| TaskError::JoinError(e))?,
-                        Err(_) => return Err(TaskError::Timeout),
-                    }
-                }
+                Some(dur) => match timeout(dur, join_handle).await {
+                    Ok(result) => result.map_err(|e| TaskError::JoinError(e))?,
+                    Err(_) => return Err(TaskError::Timeout),
+                },
                 None => join_handle.await.map_err(|e| TaskError::JoinError(e))?,
             }
         } else {
@@ -269,14 +267,12 @@ impl TaskManager {
 
         if let Some(join_handle) = join_handle {
             join_handle.abort();
-            
+
             match timeout_duration {
-                Some(dur) => {
-                    match timeout(dur, join_handle).await {
-                        Ok(_) => {}
-                        Err(_) => warn!("Task '{}' did not cancel within timeout", handle.name),
-                    }
-                }
+                Some(dur) => match timeout(dur, join_handle).await {
+                    Ok(_) => {}
+                    Err(_) => warn!("Task '{}' did not cancel within timeout", handle.name),
+                },
                 None => {
                     let _ = join_handle.await;
                 }
@@ -442,7 +438,10 @@ mod tests {
         // Cancel after a short delay
         tokio::spawn(async move {
             sleep(Duration::from_millis(100)).await;
-            manager.cancel_task(&handle, Some(Duration::from_secs(1))).await.unwrap();
+            manager
+                .cancel_task(&handle, Some(Duration::from_secs(1)))
+                .await
+                .unwrap();
         });
     }
 }

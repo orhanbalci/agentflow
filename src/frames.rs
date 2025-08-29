@@ -59,31 +59,31 @@ impl fmt::Display for KeypadEntry {
 pub trait Frame {
     /// Get the unique identifier for this frame
     fn id(&self) -> u64;
-    
+
     /// Get the frame name
     fn name(&self) -> &str;
-    
+
     /// Get the presentation timestamp in nanoseconds
     fn pts(&self) -> Option<u64>;
-    
+
     /// Set the presentation timestamp
     fn set_pts(&mut self, pts: Option<u64>);
-    
+
     /// Get frame metadata
     fn metadata(&self) -> &HashMap<String, String>;
-    
+
     /// Get mutable frame metadata
     fn metadata_mut(&mut self) -> &mut HashMap<String, String>;
-    
+
     /// Get transport source
     fn transport_source(&self) -> Option<&str>;
-    
+
     /// Set transport source
     fn set_transport_source(&mut self, source: Option<String>);
-    
+
     /// Get transport destination
     fn transport_destination(&self) -> Option<&str>;
-    
+
     /// Set transport destination
     fn set_transport_destination(&mut self, destination: Option<String>);
 }
@@ -117,39 +117,39 @@ impl Frame for BaseFrame {
     fn id(&self) -> u64 {
         self.id
     }
-    
+
     fn name(&self) -> &str {
         &self.name
     }
-    
+
     fn pts(&self) -> Option<u64> {
         self.pts
     }
-    
+
     fn set_pts(&mut self, pts: Option<u64>) {
         self.pts = pts;
     }
-    
+
     fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
     }
-    
+
     fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
         &mut self.metadata
     }
-    
+
     fn transport_source(&self) -> Option<&str> {
         self.transport_source.as_deref()
     }
-    
+
     fn set_transport_source(&mut self, source: Option<String>) {
         self.transport_source = source;
     }
-    
+
     fn transport_destination(&self) -> Option<&str> {
         self.transport_destination.as_deref()
     }
-    
+
     fn set_transport_destination(&mut self, destination: Option<String>) {
         self.transport_destination = destination;
     }
@@ -180,16 +180,36 @@ impl SystemFrame {
 }
 
 impl Frame for SystemFrame {
-    fn id(&self) -> u64 { self.base.id() }
-    fn name(&self) -> &str { self.base.name() }
-    fn pts(&self) -> Option<u64> { self.base.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.base.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.base.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.base.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.base.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.base.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.base.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.base.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.base.id()
+    }
+    fn name(&self) -> &str {
+        self.base.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.base.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.base.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.base.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.base.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.base.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.base.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.base.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.base.set_transport_destination(destination)
+    }
 }
 
 /// Data frame for processing data in order
@@ -207,16 +227,36 @@ impl DataFrame {
 }
 
 impl Frame for DataFrame {
-    fn id(&self) -> u64 { self.base.id() }
-    fn name(&self) -> &str { self.base.name() }
-    fn pts(&self) -> Option<u64> { self.base.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.base.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.base.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.base.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.base.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.base.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.base.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.base.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.base.id()
+    }
+    fn name(&self) -> &str {
+        self.base.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.base.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.base.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.base.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.base.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.base.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.base.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.base.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.base.set_transport_destination(destination)
+    }
 }
 
 /// Control frame for processing control information in order
@@ -234,16 +274,36 @@ impl ControlFrame {
 }
 
 impl Frame for ControlFrame {
-    fn id(&self) -> u64 { self.base.id() }
-    fn name(&self) -> &str { self.base.name() }
-    fn pts(&self) -> Option<u64> { self.base.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.base.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.base.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.base.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.base.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.base.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.base.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.base.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.base.id()
+    }
+    fn name(&self) -> &str {
+        self.base.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.base.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.base.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.base.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.base.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.base.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.base.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.base.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.base.set_transport_destination(destination)
+    }
 }
 
 //
@@ -310,28 +370,51 @@ impl OutputAudioRawFrame {
 }
 
 impl Frame for OutputAudioRawFrame {
-    fn id(&self) -> u64 { self.data_frame.id() }
-    fn name(&self) -> &str { self.data_frame.name() }
-    fn pts(&self) -> Option<u64> { self.data_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.data_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.data_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.data_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.data_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.data_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.data_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.data_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.data_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.data_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.data_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.data_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.data_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.data_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.data_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.data_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.data_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.data_frame.set_transport_destination(destination)
+    }
 }
 
 impl fmt::Display for OutputAudioRawFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}(pts: {:?}, destination: {:?}, size: {}, frames: {}, sample_rate: {}, channels: {})",
-               self.name(),
-               self.pts(),
-               self.transport_destination(),
-               self.audio_frame.audio.len(),
-               self.audio_frame.num_frames,
-               self.audio_frame.sample_rate,
-               self.audio_frame.num_channels)
+        write!(
+            f,
+            "{}(pts: {:?}, destination: {:?}, size: {}, frames: {}, sample_rate: {}, channels: {})",
+            self.name(),
+            self.pts(),
+            self.transport_destination(),
+            self.audio_frame.audio.len(),
+            self.audio_frame.num_frames,
+            self.audio_frame.sample_rate,
+            self.audio_frame.num_channels
+        )
     }
 }
 
@@ -352,25 +435,48 @@ impl OutputImageRawFrame {
 }
 
 impl Frame for OutputImageRawFrame {
-    fn id(&self) -> u64 { self.data_frame.id() }
-    fn name(&self) -> &str { self.data_frame.name() }
-    fn pts(&self) -> Option<u64> { self.data_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.data_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.data_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.data_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.data_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.data_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.data_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.data_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.data_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.data_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.data_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.data_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.data_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.data_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.data_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.data_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.data_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.data_frame.set_transport_destination(destination)
+    }
 }
 
 impl fmt::Display for OutputImageRawFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}(pts: {:?}, size: {:?}, format: {:?})",
-               self.name(),
-               self.pts(),
-               self.image_frame.size,
-               self.image_frame.format)
+        write!(
+            f,
+            "{}(pts: {:?}, size: {:?}, format: {:?})",
+            self.name(),
+            self.pts(),
+            self.image_frame.size,
+            self.image_frame.format
+        )
     }
 }
 
@@ -391,24 +497,47 @@ impl TextFrame {
 }
 
 impl Frame for TextFrame {
-    fn id(&self) -> u64 { self.data_frame.id() }
-    fn name(&self) -> &str { self.data_frame.name() }
-    fn pts(&self) -> Option<u64> { self.data_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.data_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.data_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.data_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.data_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.data_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.data_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.data_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.data_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.data_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.data_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.data_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.data_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.data_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.data_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.data_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.data_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.data_frame.set_transport_destination(destination)
+    }
 }
 
 impl fmt::Display for TextFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}(pts: {:?}, text: [{}])",
-               self.name(),
-               self.pts(),
-               self.text)
+        write!(
+            f,
+            "{}(pts: {:?}, text: [{}])",
+            self.name(),
+            self.pts(),
+            self.text
+        )
     }
 }
 
@@ -427,16 +556,36 @@ impl LLMTextFrame {
 }
 
 impl Frame for LLMTextFrame {
-    fn id(&self) -> u64 { self.text_frame.id() }
-    fn name(&self) -> &str { self.text_frame.name() }
-    fn pts(&self) -> Option<u64> { self.text_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.text_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.text_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.text_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.text_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.text_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.text_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.text_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.text_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.text_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.text_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.text_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.text_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.text_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.text_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.text_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.text_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.text_frame.set_transport_destination(destination)
+    }
 }
 
 impl fmt::Display for LLMTextFrame {
@@ -469,18 +618,18 @@ impl StartFrame {
             enable_metrics: false,
         }
     }
-    
+
     pub fn with_sample_rates(mut self, input: u32, output: u32) -> Self {
         self.audio_in_sample_rate = input;
         self.audio_out_sample_rate = output;
         self
     }
-    
+
     pub fn with_interruptions(mut self, allow: bool) -> Self {
         self.allow_interruptions = allow;
         self
     }
-    
+
     pub fn with_metrics(mut self, enable: bool) -> Self {
         self.enable_metrics = enable;
         self
@@ -488,16 +637,36 @@ impl StartFrame {
 }
 
 impl Frame for StartFrame {
-    fn id(&self) -> u64 { self.system_frame.id() }
-    fn name(&self) -> &str { self.system_frame.name() }
-    fn pts(&self) -> Option<u64> { self.system_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.system_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.system_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.system_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.system_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.system_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.system_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
 }
 
 /// Frame indicating pipeline should stop immediately
@@ -515,16 +684,36 @@ impl CancelFrame {
 }
 
 impl Frame for CancelFrame {
-    fn id(&self) -> u64 { self.system_frame.id() }
-    fn name(&self) -> &str { self.system_frame.name() }
-    fn pts(&self) -> Option<u64> { self.system_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.system_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.system_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.system_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.system_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.system_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.system_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
 }
 
 /// Frame notifying of errors in the pipeline
@@ -543,7 +732,7 @@ impl ErrorFrame {
             fatal: false,
         }
     }
-    
+
     pub fn fatal(error: String) -> Self {
         Self {
             system_frame: SystemFrame::new("ErrorFrame"),
@@ -554,24 +743,47 @@ impl ErrorFrame {
 }
 
 impl Frame for ErrorFrame {
-    fn id(&self) -> u64 { self.system_frame.id() }
-    fn name(&self) -> &str { self.system_frame.name() }
-    fn pts(&self) -> Option<u64> { self.system_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.system_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.system_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.system_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.system_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.system_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.system_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
 }
 
 impl fmt::Display for ErrorFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}(error: {}, fatal: {})",
-               self.name(),
-               self.error,
-               self.fatal)
+        write!(
+            f,
+            "{}(error: {}, fatal: {})",
+            self.name(),
+            self.error,
+            self.fatal
+        )
     }
 }
 
@@ -592,16 +804,36 @@ impl UserStartedSpeakingFrame {
 }
 
 impl Frame for UserStartedSpeakingFrame {
-    fn id(&self) -> u64 { self.system_frame.id() }
-    fn name(&self) -> &str { self.system_frame.name() }
-    fn pts(&self) -> Option<u64> { self.system_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.system_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.system_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.system_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.system_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.system_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.system_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
 }
 
 /// Frame indicating user has stopped speaking
@@ -621,16 +853,36 @@ impl UserStoppedSpeakingFrame {
 }
 
 impl Frame for UserStoppedSpeakingFrame {
-    fn id(&self) -> u64 { self.system_frame.id() }
-    fn name(&self) -> &str { self.system_frame.name() }
-    fn pts(&self) -> Option<u64> { self.system_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.system_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.system_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.system_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.system_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.system_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.system_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
 }
 
 /// Frame indicating start of frame processing interruption
@@ -648,16 +900,36 @@ impl StartInterruptionFrame {
 }
 
 impl Frame for StartInterruptionFrame {
-    fn id(&self) -> u64 { self.system_frame.id() }
-    fn name(&self) -> &str { self.system_frame.name() }
-    fn pts(&self) -> Option<u64> { self.system_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.system_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.system_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.system_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.system_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.system_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.system_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.system_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
 }
 
 /// Frame indicating pipeline has ended and should shut down
@@ -675,16 +947,36 @@ impl EndFrame {
 }
 
 impl Frame for EndFrame {
-    fn id(&self) -> u64 { self.control_frame.id() }
-    fn name(&self) -> &str { self.control_frame.name() }
-    fn pts(&self) -> Option<u64> { self.control_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.control_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.control_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.control_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.control_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.control_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.control_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.control_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
 }
 
 /// Frame indicating the beginning of an LLM response
@@ -702,16 +994,36 @@ impl LLMFullResponseStartFrame {
 }
 
 impl Frame for LLMFullResponseStartFrame {
-    fn id(&self) -> u64 { self.control_frame.id() }
-    fn name(&self) -> &str { self.control_frame.name() }
-    fn pts(&self) -> Option<u64> { self.control_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.control_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.control_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.control_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.control_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.control_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.control_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.control_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
 }
 
 /// Frame indicating the end of an LLM response
@@ -729,16 +1041,36 @@ impl LLMFullResponseEndFrame {
 }
 
 impl Frame for LLMFullResponseEndFrame {
-    fn id(&self) -> u64 { self.control_frame.id() }
-    fn name(&self) -> &str { self.control_frame.name() }
-    fn pts(&self) -> Option<u64> { self.control_frame.pts() }
-    fn set_pts(&mut self, pts: Option<u64>) { self.control_frame.set_pts(pts) }
-    fn metadata(&self) -> &HashMap<String, String> { self.control_frame.metadata() }
-    fn metadata_mut(&mut self) -> &mut HashMap<String, String> { self.control_frame.metadata_mut() }
-    fn transport_source(&self) -> Option<&str> { self.control_frame.transport_source() }
-    fn set_transport_source(&mut self, source: Option<String>) { self.control_frame.set_transport_source(source) }
-    fn transport_destination(&self) -> Option<&str> { self.control_frame.transport_destination() }
-    fn set_transport_destination(&mut self, destination: Option<String>) { self.control_frame.set_transport_destination(destination) }
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
 }
 
 //
@@ -753,7 +1085,7 @@ pub enum FrameType {
     OutputImageRaw(OutputImageRawFrame),
     Text(TextFrame),
     LLMText(LLMTextFrame),
-    
+
     // System frames
     Start(StartFrame),
     Cancel(CancelFrame),
@@ -761,7 +1093,7 @@ pub enum FrameType {
     StartInterruption(StartInterruptionFrame),
     UserStartedSpeaking(UserStartedSpeakingFrame),
     UserStoppedSpeaking(UserStoppedSpeakingFrame),
-    
+
     // Control frames
     End(EndFrame),
     LLMFullResponseStart(LLMFullResponseStartFrame),
@@ -786,7 +1118,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.id(),
         }
     }
-    
+
     fn name(&self) -> &str {
         match self {
             FrameType::OutputAudioRaw(f) => f.name(),
@@ -804,7 +1136,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.name(),
         }
     }
-    
+
     fn pts(&self) -> Option<u64> {
         match self {
             FrameType::OutputAudioRaw(f) => f.pts(),
@@ -822,7 +1154,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.pts(),
         }
     }
-    
+
     fn set_pts(&mut self, pts: Option<u64>) {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_pts(pts),
@@ -840,7 +1172,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.set_pts(pts),
         }
     }
-    
+
     fn metadata(&self) -> &HashMap<String, String> {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata(),
@@ -858,7 +1190,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.metadata(),
         }
     }
-    
+
     fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata_mut(),
@@ -876,7 +1208,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.metadata_mut(),
         }
     }
-    
+
     fn transport_source(&self) -> Option<&str> {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_source(),
@@ -894,7 +1226,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.transport_source(),
         }
     }
-    
+
     fn set_transport_source(&mut self, source: Option<String>) {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_source(source),
@@ -912,7 +1244,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.set_transport_source(source),
         }
     }
-    
+
     fn transport_destination(&self) -> Option<&str> {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_destination(),
@@ -930,7 +1262,7 @@ impl Frame for FrameType {
             FrameType::LLMFullResponseEnd(f) => f.transport_destination(),
         }
     }
-    
+
     fn set_transport_destination(&mut self, destination: Option<String>) {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_destination(destination),
@@ -973,29 +1305,35 @@ impl fmt::Display for FrameType {
 impl FrameType {
     /// Check if this is a system frame
     pub fn is_system_frame(&self) -> bool {
-        matches!(self, 
-            FrameType::Start(_) | 
-            FrameType::Cancel(_) | 
-            FrameType::Error(_) |
-            FrameType::UserStartedSpeaking(_) |
-            FrameType::UserStoppedSpeaking(_))
+        matches!(
+            self,
+            FrameType::Start(_)
+                | FrameType::Cancel(_)
+                | FrameType::Error(_)
+                | FrameType::UserStartedSpeaking(_)
+                | FrameType::UserStoppedSpeaking(_)
+        )
     }
-    
+
     /// Check if this is a data frame
     pub fn is_data_frame(&self) -> bool {
-        matches!(self,
-            FrameType::OutputAudioRaw(_) |
-            FrameType::OutputImageRaw(_) |
-            FrameType::Text(_) |
-            FrameType::LLMText(_))
+        matches!(
+            self,
+            FrameType::OutputAudioRaw(_)
+                | FrameType::OutputImageRaw(_)
+                | FrameType::Text(_)
+                | FrameType::LLMText(_)
+        )
     }
-    
+
     /// Check if this is a control frame
     pub fn is_control_frame(&self) -> bool {
-        matches!(self,
-            FrameType::End(_) |
-            FrameType::LLMFullResponseStart(_) |
-            FrameType::LLMFullResponseEnd(_))
+        matches!(
+            self,
+            FrameType::End(_)
+                | FrameType::LLMFullResponseStart(_)
+                | FrameType::LLMFullResponseEnd(_)
+        )
     }
 }
 
@@ -1022,7 +1360,7 @@ mod tests {
     fn test_audio_frame() {
         let audio_data = vec![0u8; 1024]; // 1KB of audio data
         let audio_frame = OutputAudioRawFrame::new(audio_data.clone(), 16000, 1);
-        
+
         assert_eq!(audio_frame.audio_frame.audio, audio_data);
         assert_eq!(audio_frame.audio_frame.sample_rate, 16000);
         assert_eq!(audio_frame.audio_frame.num_channels, 1);
@@ -1035,7 +1373,7 @@ mod tests {
             .with_sample_rates(48000, 24000)
             .with_interruptions(true)
             .with_metrics(true);
-            
+
         assert_eq!(start_frame.audio_in_sample_rate, 48000);
         assert_eq!(start_frame.audio_out_sample_rate, 24000);
         assert!(start_frame.allow_interruptions);
@@ -1068,21 +1406,21 @@ mod tests {
     fn test_frame_type_enum() {
         let text_frame = TextFrame::new("Test".to_string());
         let frame_type = FrameType::Text(text_frame);
-        
+
         assert!(frame_type.is_data_frame());
         assert!(!frame_type.is_system_frame());
         assert!(!frame_type.is_control_frame());
 
         let start_frame = StartFrame::new();
         let frame_type = FrameType::Start(start_frame);
-        
+
         assert!(!frame_type.is_data_frame());
         assert!(frame_type.is_system_frame());
         assert!(!frame_type.is_control_frame());
 
         let end_frame = EndFrame::new();
         let frame_type = FrameType::End(end_frame);
-        
+
         assert!(!frame_type.is_data_frame());
         assert!(!frame_type.is_system_frame());
         assert!(frame_type.is_control_frame());
@@ -1091,21 +1429,31 @@ mod tests {
     #[test]
     fn test_frame_metadata() {
         let mut text_frame = TextFrame::new("Test".to_string());
-        
-        text_frame.metadata_mut().insert("key1".to_string(), "value1".to_string());
-        text_frame.metadata_mut().insert("key2".to_string(), "value2".to_string());
-        
-        assert_eq!(text_frame.metadata().get("key1"), Some(&"value1".to_string()));
-        assert_eq!(text_frame.metadata().get("key2"), Some(&"value2".to_string()));
+
+        text_frame
+            .metadata_mut()
+            .insert("key1".to_string(), "value1".to_string());
+        text_frame
+            .metadata_mut()
+            .insert("key2".to_string(), "value2".to_string());
+
+        assert_eq!(
+            text_frame.metadata().get("key1"),
+            Some(&"value1".to_string())
+        );
+        assert_eq!(
+            text_frame.metadata().get("key2"),
+            Some(&"value2".to_string())
+        );
     }
 
     #[test]
     fn test_transport_fields() {
         let mut audio_frame = OutputAudioRawFrame::new(vec![0u8; 100], 16000, 1);
-        
+
         audio_frame.set_transport_source(Some("microphone".to_string()));
         audio_frame.set_transport_destination(Some("speaker".to_string()));
-        
+
         assert_eq!(audio_frame.transport_source(), Some("microphone"));
         assert_eq!(audio_frame.transport_destination(), Some("speaker"));
     }
