@@ -932,6 +932,441 @@ impl Frame for StartInterruptionFrame {
     }
 }
 
+/// Frame indicating stop of frame processing interruption
+#[derive(Debug, Clone)]
+pub struct StopInterruptionFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl StopInterruptionFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("StopInterruptionFrame"),
+        }
+    }
+}
+
+impl Frame for StopInterruptionFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame indicating bot interruption
+#[derive(Debug, Clone)]
+pub struct BotInterruptionFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl BotInterruptionFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("BotInterruptionFrame"),
+        }
+    }
+}
+
+impl Frame for BotInterruptionFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame indicating bot started speaking
+#[derive(Debug, Clone)]
+pub struct BotStartedSpeakingFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl BotStartedSpeakingFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("BotStartedSpeakingFrame"),
+        }
+    }
+}
+
+impl Frame for BotStartedSpeakingFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame indicating bot stopped speaking
+#[derive(Debug, Clone)]
+pub struct BotStoppedSpeakingFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl BotStoppedSpeakingFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("BotStoppedSpeakingFrame"),
+        }
+    }
+}
+
+impl Frame for BotStoppedSpeakingFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame for emulating user started speaking
+#[derive(Debug, Clone)]
+pub struct EmulateUserStartedSpeakingFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl EmulateUserStartedSpeakingFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("EmulateUserStartedSpeakingFrame"),
+        }
+    }
+}
+
+impl Frame for EmulateUserStartedSpeakingFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame for emulating user stopped speaking
+#[derive(Debug, Clone)]
+pub struct EmulateUserStoppedSpeakingFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl EmulateUserStoppedSpeakingFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("EmulateUserStoppedSpeakingFrame"),
+        }
+    }
+}
+
+impl Frame for EmulateUserStoppedSpeakingFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame indicating transport should stop temporarily
+#[derive(Debug, Clone)]
+pub struct StopFrame {
+    pub control_frame: ControlFrame,
+}
+
+impl StopFrame {
+    pub fn new() -> Self {
+        Self {
+            control_frame: ControlFrame::new("StopFrame"),
+        }
+    }
+}
+
+impl Frame for StopFrame {
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame containing input audio data
+#[derive(Debug, Clone)]
+pub struct InputAudioRawFrame {
+    pub data_frame: DataFrame,
+    pub audio: Vec<u8>,
+    pub sample_rate: u32,
+    pub num_channels: u32,
+}
+
+impl InputAudioRawFrame {
+    pub fn new(audio: Vec<u8>, sample_rate: u32, num_channels: u32) -> Self {
+        Self {
+            data_frame: DataFrame::new("InputAudioRawFrame"),
+            audio,
+            sample_rate,
+            num_channels,
+        }
+    }
+}
+
+impl Frame for InputAudioRawFrame {
+    fn id(&self) -> u64 {
+        self.data_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.data_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.data_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.data_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.data_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.data_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.data_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.data_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.data_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.data_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame containing input image data
+#[derive(Debug, Clone)]
+pub struct InputImageRawFrame {
+    pub data_frame: DataFrame,
+    pub image: Vec<u8>,
+    pub size: (u32, u32),
+    pub format: String,
+}
+
+impl InputImageRawFrame {
+    pub fn new(image: Vec<u8>, size: (u32, u32), format: String) -> Self {
+        Self {
+            data_frame: DataFrame::new("InputImageRawFrame"),
+            image,
+            size,
+            format,
+        }
+    }
+}
+
+impl Frame for InputImageRawFrame {
+    fn id(&self) -> u64 {
+        self.data_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.data_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.data_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.data_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.data_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.data_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.data_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.data_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.data_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.data_frame.set_transport_destination(destination)
+    }
+}
+
 /// Frame indicating pipeline has ended and should shut down
 #[derive(Debug, Clone)]
 pub struct EndFrame {
@@ -1083,6 +1518,8 @@ pub enum FrameType {
     // Data frames
     OutputAudioRaw(OutputAudioRawFrame),
     OutputImageRaw(OutputImageRawFrame),
+    InputAudioRaw(InputAudioRawFrame),
+    InputImageRaw(InputImageRawFrame),
     Text(TextFrame),
     LLMText(LLMTextFrame),
 
@@ -1091,11 +1528,18 @@ pub enum FrameType {
     Cancel(CancelFrame),
     Error(ErrorFrame),
     StartInterruption(StartInterruptionFrame),
+    StopInterruption(StopInterruptionFrame),
     UserStartedSpeaking(UserStartedSpeakingFrame),
     UserStoppedSpeaking(UserStoppedSpeakingFrame),
+    BotInterruption(BotInterruptionFrame),
+    BotStartedSpeaking(BotStartedSpeakingFrame),
+    BotStoppedSpeaking(BotStoppedSpeakingFrame),
+    EmulateUserStartedSpeaking(EmulateUserStartedSpeakingFrame),
+    EmulateUserStoppedSpeaking(EmulateUserStoppedSpeakingFrame),
 
     // Control frames
     End(EndFrame),
+    Stop(StopFrame),
     LLMFullResponseStart(LLMFullResponseStartFrame),
     LLMFullResponseEnd(LLMFullResponseEndFrame),
 }
@@ -1105,6 +1549,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.id(),
             FrameType::OutputImageRaw(f) => f.id(),
+            FrameType::InputAudioRaw(f) => f.id(),
+            FrameType::InputImageRaw(f) => f.id(),
             FrameType::Text(f) => f.id(),
             FrameType::LLMText(f) => f.id(),
             FrameType::Start(f) => f.id(),
@@ -1113,7 +1559,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.id(),
             FrameType::UserStoppedSpeaking(f) => f.id(),
             FrameType::StartInterruption(f) => f.id(),
+            FrameType::StopInterruption(f) => f.id(),
+            FrameType::BotInterruption(f) => f.id(),
+            FrameType::BotStartedSpeaking(f) => f.id(),
+            FrameType::BotStoppedSpeaking(f) => f.id(),
+            FrameType::EmulateUserStartedSpeaking(f) => f.id(),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.id(),
             FrameType::End(f) => f.id(),
+            FrameType::Stop(f) => f.id(),
             FrameType::LLMFullResponseStart(f) => f.id(),
             FrameType::LLMFullResponseEnd(f) => f.id(),
         }
@@ -1123,6 +1576,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.name(),
             FrameType::OutputImageRaw(f) => f.name(),
+            FrameType::InputAudioRaw(f) => f.name(),
+            FrameType::InputImageRaw(f) => f.name(),
             FrameType::Text(f) => f.name(),
             FrameType::LLMText(f) => f.name(),
             FrameType::Start(f) => f.name(),
@@ -1131,7 +1586,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.name(),
             FrameType::UserStoppedSpeaking(f) => f.name(),
             FrameType::StartInterruption(f) => f.name(),
+            FrameType::StopInterruption(f) => f.name(),
+            FrameType::BotInterruption(f) => f.name(),
+            FrameType::BotStartedSpeaking(f) => f.name(),
+            FrameType::BotStoppedSpeaking(f) => f.name(),
+            FrameType::EmulateUserStartedSpeaking(f) => f.name(),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.name(),
             FrameType::End(f) => f.name(),
+            FrameType::Stop(f) => f.name(),
             FrameType::LLMFullResponseStart(f) => f.name(),
             FrameType::LLMFullResponseEnd(f) => f.name(),
         }
@@ -1141,6 +1603,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.pts(),
             FrameType::OutputImageRaw(f) => f.pts(),
+            FrameType::InputAudioRaw(f) => f.pts(),
+            FrameType::InputImageRaw(f) => f.pts(),
             FrameType::Text(f) => f.pts(),
             FrameType::LLMText(f) => f.pts(),
             FrameType::Start(f) => f.pts(),
@@ -1149,7 +1613,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.pts(),
             FrameType::UserStoppedSpeaking(f) => f.pts(),
             FrameType::StartInterruption(f) => f.pts(),
+            FrameType::StopInterruption(f) => f.pts(),
+            FrameType::BotInterruption(f) => f.pts(),
+            FrameType::BotStartedSpeaking(f) => f.pts(),
+            FrameType::BotStoppedSpeaking(f) => f.pts(),
+            FrameType::EmulateUserStartedSpeaking(f) => f.pts(),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.pts(),
             FrameType::End(f) => f.pts(),
+            FrameType::Stop(f) => f.pts(),
             FrameType::LLMFullResponseStart(f) => f.pts(),
             FrameType::LLMFullResponseEnd(f) => f.pts(),
         }
@@ -1159,6 +1630,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_pts(pts),
             FrameType::OutputImageRaw(f) => f.set_pts(pts),
+            FrameType::InputAudioRaw(f) => f.set_pts(pts),
+            FrameType::InputImageRaw(f) => f.set_pts(pts),
             FrameType::Text(f) => f.set_pts(pts),
             FrameType::LLMText(f) => f.set_pts(pts),
             FrameType::Start(f) => f.set_pts(pts),
@@ -1167,7 +1640,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.set_pts(pts),
             FrameType::UserStoppedSpeaking(f) => f.set_pts(pts),
             FrameType::StartInterruption(f) => f.set_pts(pts),
+            FrameType::StopInterruption(f) => f.set_pts(pts),
+            FrameType::BotInterruption(f) => f.set_pts(pts),
+            FrameType::BotStartedSpeaking(f) => f.set_pts(pts),
+            FrameType::BotStoppedSpeaking(f) => f.set_pts(pts),
+            FrameType::EmulateUserStartedSpeaking(f) => f.set_pts(pts),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.set_pts(pts),
             FrameType::End(f) => f.set_pts(pts),
+            FrameType::Stop(f) => f.set_pts(pts),
             FrameType::LLMFullResponseStart(f) => f.set_pts(pts),
             FrameType::LLMFullResponseEnd(f) => f.set_pts(pts),
         }
@@ -1177,6 +1657,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata(),
             FrameType::OutputImageRaw(f) => f.metadata(),
+            FrameType::InputAudioRaw(f) => f.metadata(),
+            FrameType::InputImageRaw(f) => f.metadata(),
             FrameType::Text(f) => f.metadata(),
             FrameType::LLMText(f) => f.metadata(),
             FrameType::Start(f) => f.metadata(),
@@ -1185,7 +1667,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.metadata(),
             FrameType::UserStoppedSpeaking(f) => f.metadata(),
             FrameType::StartInterruption(f) => f.metadata(),
+            FrameType::StopInterruption(f) => f.metadata(),
+            FrameType::BotInterruption(f) => f.metadata(),
+            FrameType::BotStartedSpeaking(f) => f.metadata(),
+            FrameType::BotStoppedSpeaking(f) => f.metadata(),
+            FrameType::EmulateUserStartedSpeaking(f) => f.metadata(),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.metadata(),
             FrameType::End(f) => f.metadata(),
+            FrameType::Stop(f) => f.metadata(),
             FrameType::LLMFullResponseStart(f) => f.metadata(),
             FrameType::LLMFullResponseEnd(f) => f.metadata(),
         }
@@ -1195,6 +1684,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata_mut(),
             FrameType::OutputImageRaw(f) => f.metadata_mut(),
+            FrameType::InputAudioRaw(f) => f.metadata_mut(),
+            FrameType::InputImageRaw(f) => f.metadata_mut(),
             FrameType::Text(f) => f.metadata_mut(),
             FrameType::LLMText(f) => f.metadata_mut(),
             FrameType::Start(f) => f.metadata_mut(),
@@ -1203,7 +1694,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.metadata_mut(),
             FrameType::UserStoppedSpeaking(f) => f.metadata_mut(),
             FrameType::StartInterruption(f) => f.metadata_mut(),
+            FrameType::StopInterruption(f) => f.metadata_mut(),
+            FrameType::BotInterruption(f) => f.metadata_mut(),
+            FrameType::BotStartedSpeaking(f) => f.metadata_mut(),
+            FrameType::BotStoppedSpeaking(f) => f.metadata_mut(),
+            FrameType::EmulateUserStartedSpeaking(f) => f.metadata_mut(),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.metadata_mut(),
             FrameType::End(f) => f.metadata_mut(),
+            FrameType::Stop(f) => f.metadata_mut(),
             FrameType::LLMFullResponseStart(f) => f.metadata_mut(),
             FrameType::LLMFullResponseEnd(f) => f.metadata_mut(),
         }
@@ -1213,6 +1711,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_source(),
             FrameType::OutputImageRaw(f) => f.transport_source(),
+            FrameType::InputAudioRaw(f) => f.transport_source(),
+            FrameType::InputImageRaw(f) => f.transport_source(),
             FrameType::Text(f) => f.transport_source(),
             FrameType::LLMText(f) => f.transport_source(),
             FrameType::Start(f) => f.transport_source(),
@@ -1221,7 +1721,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.transport_source(),
             FrameType::UserStoppedSpeaking(f) => f.transport_source(),
             FrameType::StartInterruption(f) => f.transport_source(),
+            FrameType::StopInterruption(f) => f.transport_source(),
+            FrameType::BotInterruption(f) => f.transport_source(),
+            FrameType::BotStartedSpeaking(f) => f.transport_source(),
+            FrameType::BotStoppedSpeaking(f) => f.transport_source(),
+            FrameType::EmulateUserStartedSpeaking(f) => f.transport_source(),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.transport_source(),
             FrameType::End(f) => f.transport_source(),
+            FrameType::Stop(f) => f.transport_source(),
             FrameType::LLMFullResponseStart(f) => f.transport_source(),
             FrameType::LLMFullResponseEnd(f) => f.transport_source(),
         }
@@ -1231,6 +1738,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_source(source),
             FrameType::OutputImageRaw(f) => f.set_transport_source(source),
+            FrameType::InputAudioRaw(f) => f.set_transport_source(source),
+            FrameType::InputImageRaw(f) => f.set_transport_source(source),
             FrameType::Text(f) => f.set_transport_source(source),
             FrameType::LLMText(f) => f.set_transport_source(source),
             FrameType::Start(f) => f.set_transport_source(source),
@@ -1239,7 +1748,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.set_transport_source(source),
             FrameType::UserStoppedSpeaking(f) => f.set_transport_source(source),
             FrameType::StartInterruption(f) => f.set_transport_source(source),
+            FrameType::StopInterruption(f) => f.set_transport_source(source),
+            FrameType::BotInterruption(f) => f.set_transport_source(source),
+            FrameType::BotStartedSpeaking(f) => f.set_transport_source(source),
+            FrameType::BotStoppedSpeaking(f) => f.set_transport_source(source),
+            FrameType::EmulateUserStartedSpeaking(f) => f.set_transport_source(source),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_source(source),
             FrameType::End(f) => f.set_transport_source(source),
+            FrameType::Stop(f) => f.set_transport_source(source),
             FrameType::LLMFullResponseStart(f) => f.set_transport_source(source),
             FrameType::LLMFullResponseEnd(f) => f.set_transport_source(source),
         }
@@ -1249,6 +1765,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_destination(),
             FrameType::OutputImageRaw(f) => f.transport_destination(),
+            FrameType::InputAudioRaw(f) => f.transport_destination(),
+            FrameType::InputImageRaw(f) => f.transport_destination(),
             FrameType::Text(f) => f.transport_destination(),
             FrameType::LLMText(f) => f.transport_destination(),
             FrameType::Start(f) => f.transport_destination(),
@@ -1257,7 +1775,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.transport_destination(),
             FrameType::UserStoppedSpeaking(f) => f.transport_destination(),
             FrameType::StartInterruption(f) => f.transport_destination(),
+            FrameType::StopInterruption(f) => f.transport_destination(),
+            FrameType::BotInterruption(f) => f.transport_destination(),
+            FrameType::BotStartedSpeaking(f) => f.transport_destination(),
+            FrameType::BotStoppedSpeaking(f) => f.transport_destination(),
+            FrameType::EmulateUserStartedSpeaking(f) => f.transport_destination(),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.transport_destination(),
             FrameType::End(f) => f.transport_destination(),
+            FrameType::Stop(f) => f.transport_destination(),
             FrameType::LLMFullResponseStart(f) => f.transport_destination(),
             FrameType::LLMFullResponseEnd(f) => f.transport_destination(),
         }
@@ -1267,6 +1792,8 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_destination(destination),
             FrameType::OutputImageRaw(f) => f.set_transport_destination(destination),
+            FrameType::InputAudioRaw(f) => f.set_transport_destination(destination),
+            FrameType::InputImageRaw(f) => f.set_transport_destination(destination),
             FrameType::Text(f) => f.set_transport_destination(destination),
             FrameType::LLMText(f) => f.set_transport_destination(destination),
             FrameType::Start(f) => f.set_transport_destination(destination),
@@ -1275,7 +1802,14 @@ impl Frame for FrameType {
             FrameType::UserStartedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::UserStoppedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::StartInterruption(f) => f.set_transport_destination(destination),
+            FrameType::StopInterruption(f) => f.set_transport_destination(destination),
+            FrameType::BotInterruption(f) => f.set_transport_destination(destination),
+            FrameType::BotStartedSpeaking(f) => f.set_transport_destination(destination),
+            FrameType::BotStoppedSpeaking(f) => f.set_transport_destination(destination),
+            FrameType::EmulateUserStartedSpeaking(f) => f.set_transport_destination(destination),
+            FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::End(f) => f.set_transport_destination(destination),
+            FrameType::Stop(f) => f.set_transport_destination(destination),
             FrameType::LLMFullResponseStart(f) => f.set_transport_destination(destination),
             FrameType::LLMFullResponseEnd(f) => f.set_transport_destination(destination),
         }
@@ -1287,6 +1821,8 @@ impl fmt::Display for FrameType {
         match self {
             FrameType::OutputAudioRaw(frame) => frame.fmt(f),
             FrameType::OutputImageRaw(frame) => frame.fmt(f),
+            FrameType::InputAudioRaw(frame) => write!(f, "{}", frame.name()),
+            FrameType::InputImageRaw(frame) => write!(f, "{}", frame.name()),
             FrameType::Text(frame) => frame.fmt(f),
             FrameType::LLMText(frame) => frame.fmt(f),
             FrameType::Start(frame) => write!(f, "{}", frame.name()),
@@ -1295,7 +1831,14 @@ impl fmt::Display for FrameType {
             FrameType::UserStartedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::UserStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::StartInterruption(frame) => write!(f, "{}", frame.name()),
+            FrameType::StopInterruption(frame) => write!(f, "{}", frame.name()),
+            FrameType::BotInterruption(frame) => write!(f, "{}", frame.name()),
+            FrameType::BotStartedSpeaking(frame) => write!(f, "{}", frame.name()),
+            FrameType::BotStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
+            FrameType::EmulateUserStartedSpeaking(frame) => write!(f, "{}", frame.name()),
+            FrameType::EmulateUserStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::End(frame) => write!(f, "{}", frame.name()),
+            FrameType::Stop(frame) => write!(f, "{}", frame.name()),
             FrameType::LLMFullResponseStart(frame) => write!(f, "{}", frame.name()),
             FrameType::LLMFullResponseEnd(frame) => write!(f, "{}", frame.name()),
         }
@@ -1312,6 +1855,13 @@ impl FrameType {
                 | FrameType::Error(_)
                 | FrameType::UserStartedSpeaking(_)
                 | FrameType::UserStoppedSpeaking(_)
+                | FrameType::StartInterruption(_)
+                | FrameType::StopInterruption(_)
+                | FrameType::BotInterruption(_)
+                | FrameType::BotStartedSpeaking(_)
+                | FrameType::BotStoppedSpeaking(_)
+                | FrameType::EmulateUserStartedSpeaking(_)
+                | FrameType::EmulateUserStoppedSpeaking(_)
         )
     }
 
@@ -1321,6 +1871,8 @@ impl FrameType {
             self,
             FrameType::OutputAudioRaw(_)
                 | FrameType::OutputImageRaw(_)
+                | FrameType::InputAudioRaw(_)
+                | FrameType::InputImageRaw(_)
                 | FrameType::Text(_)
                 | FrameType::LLMText(_)
         )
