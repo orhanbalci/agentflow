@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
 
-use crate::processors::frame_processor::{FrameDirection, FrameProcessor, FrameProcessorTrait};
+use crate::processors::frame::{FrameDirection, FrameProcessor, FrameProcessorTrait};
 use crate::task_manager::{TaskHandle, TaskManager};
 use crate::transport::params::TransportParams;
 use crate::{

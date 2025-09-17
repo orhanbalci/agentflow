@@ -7,5 +7,5 @@ pub mod transport;
 pub use audio::*;
 pub use frames::*;
 
-pub use processors::frame_processor::*;
+pub use processors::frame::*;
 pub use transport::params::*;

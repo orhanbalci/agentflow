@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::processors::frame_processor::FrameProcessor;
+use crate::processors::frame::FrameProcessor;
 use crate::task_manager::TaskManager;
 
 /// Base trait for transport implementations.
