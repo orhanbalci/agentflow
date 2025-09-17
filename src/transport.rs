@@ -13,12 +13,11 @@
 /// The transport system follows modern Rust module organization practices, with each
 /// submodule focused on specific functionality while maintaining clear interfaces
 /// between components.
-
 pub mod base;
-pub mod params;
 pub mod input;
+pub mod params;
 
 // Re-export commonly used types for convenience
-pub use base::{BaseTransport, BaseTransportImpl, BaseTransportBuilder};
-pub use params::{TransportParams, AudioMixerHandle, AudioFilterHandle};
+pub use base::{BaseTransport, BaseTransportBuilder, BaseTransportImpl};
 pub use input::BaseInputTransport;
+pub use params::{AudioFilterHandle, AudioMixerHandle, TransportParams};

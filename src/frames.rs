@@ -306,6 +306,193 @@ impl Frame for ControlFrame {
     }
 }
 
+/// Control frame for audio mixer operations
+#[derive(Debug, Clone)]
+pub struct MixerControlFrame {
+    pub control_frame: ControlFrame,
+    pub enabled: Option<bool>,
+    pub volume: Option<f32>,
+    pub settings: HashMap<String, String>,
+}
+
+impl MixerControlFrame {
+    pub fn new() -> Self {
+        Self {
+            control_frame: ControlFrame::new("MixerControlFrame"),
+            enabled: None,
+            volume: None,
+            settings: HashMap::new(),
+        }
+    }
+
+    pub fn enable() -> Self {
+        Self {
+            control_frame: ControlFrame::new("MixerControlFrame"),
+            enabled: Some(true),
+            volume: None,
+            settings: HashMap::new(),
+        }
+    }
+
+    pub fn disable() -> Self {
+        Self {
+            control_frame: ControlFrame::new("MixerControlFrame"),
+            enabled: Some(false),
+            volume: None,
+            settings: HashMap::new(),
+        }
+    }
+
+    pub fn set_volume(volume: f32) -> Self {
+        Self {
+            control_frame: ControlFrame::new("MixerControlFrame"),
+            enabled: None,
+            volume: Some(volume),
+            settings: HashMap::new(),
+        }
+    }
+
+    pub fn with_settings(settings: HashMap<String, String>) -> Self {
+        Self {
+            control_frame: ControlFrame::new("MixerControlFrame"),
+            enabled: None,
+            volume: None,
+            settings,
+        }
+    }
+}
+
+impl Frame for MixerControlFrame {
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame to enable or disable the mixer
+#[derive(Debug, Clone)]
+pub struct MixerEnableFrame {
+    pub control_frame: ControlFrame,
+    pub enable: bool,
+}
+
+impl MixerEnableFrame {
+    pub fn new(enable: bool) -> Self {
+        Self {
+            control_frame: ControlFrame::new("MixerEnableFrame"),
+            enable,
+        }
+    }
+}
+
+impl Frame for MixerEnableFrame {
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame to update mixer settings
+#[derive(Debug, Clone)]
+pub struct MixerUpdateSettingsFrame {
+    pub control_frame: ControlFrame,
+    pub settings: HashMap<String, String>,
+}
+
+impl MixerUpdateSettingsFrame {
+    pub fn new(settings: HashMap<String, String>) -> Self {
+        Self {
+            control_frame: ControlFrame::new("MixerUpdateSettingsFrame"),
+            settings,
+        }
+    }
+}
+
+impl Frame for MixerUpdateSettingsFrame {
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
+}
+
 //
 // Audio and Image Mixins
 //

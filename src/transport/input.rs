@@ -27,25 +27,25 @@ const AUDIO_INPUT_TIMEOUT_SECS: u64 = 1; // Using 1 second instead of 0.5 for be
 pub struct BaseInputTransport {
     /// Transport configuration parameters
     params: TransportParams,
-    
+
     /// Frame processor implementation
     frame_processor: FrameProcessor,
-    
+
     /// Input sample rate, initialized on StartFrame
     sample_rate: AtomicU32,
-    
+
     /// Track bot speaking state for interruption logic
     bot_speaking: AtomicBool,
-    
+
     /// Track user speaking state for interruption logic
     user_speaking: AtomicBool,
-    
+
     /// Audio input queue for processing frames
     audio_in_queue: Option<mpsc::UnboundedSender<InputAudioRawFrame>>,
-    
+
     /// Audio processing task handle
     audio_task: Option<TaskHandle>,
-    
+
     /// If the transport is stopped with StopFrame, we don't want to push
     /// frames downstream until we get another StartFrame
     paused: AtomicBool,
@@ -66,7 +66,7 @@ impl BaseInputTransport {
     ) -> Self {
         let processor_name = name.unwrap_or_else(|| "BaseInputTransport".to_string());
         let frame_processor = FrameProcessor::new(processor_name, task_manager);
-        
+
         Self {
             params,
             frame_processor,
@@ -111,9 +111,11 @@ impl BaseInputTransport {
         self.paused.store(false, Ordering::Relaxed);
         self.user_speaking.store(false, Ordering::Relaxed);
 
-        let sample_rate = self.params.audio_in_sample_rate
+        let sample_rate = self
+            .params
+            .audio_in_sample_rate
             .unwrap_or(frame.audio_in_sample_rate);
-        
+
         self.sample_rate.store(sample_rate, Ordering::Relaxed);
 
         // Start audio filter if configured
@@ -129,7 +131,7 @@ impl BaseInputTransport {
     pub async fn stop(&mut self) -> Result<(), String> {
         // Cancel and wait for the audio input task to finish
         self.cancel_audio_task().await?;
-        
+
         // Stop audio filter if configured
         if let Some(ref mut _filter) = self.params.audio_in_filter {
             // TODO: Implement stop method for AudioFilterHandle
@@ -142,10 +144,10 @@ impl BaseInputTransport {
     /// Pause the input transport temporarily.
     pub async fn pause(&mut self) -> Result<(), String> {
         self.paused.store(true, Ordering::Relaxed);
-        
+
         // Cancel task so we clear the queue
         self.cancel_audio_task().await?;
-        
+
         // Restart the task
         self.create_audio_task().await?;
 
@@ -186,7 +188,9 @@ impl BaseInputTransport {
     pub async fn push_audio_frame(&mut self, frame: InputAudioRawFrame) -> Result<(), String> {
         if self.params.audio_in_enabled && !self.paused.load(Ordering::Relaxed) {
             if let Some(ref sender) = self.audio_in_queue {
-                sender.send(frame).map_err(|_| "Failed to send audio frame to queue")?;
+                sender
+                    .send(frame)
+                    .map_err(|_| "Failed to send audio frame to queue")?;
             }
         }
         Ok(())
@@ -198,7 +202,10 @@ impl BaseInputTransport {
         if self.frame_processor.interruptions_allowed() {
             self.frame_processor.start_interruption().await?;
             self.frame_processor
-                .push_frame(FrameType::StartInterruption(StartInterruptionFrame::new()), FrameDirection::Downstream)
+                .push_frame(
+                    FrameType::StartInterruption(StartInterruptionFrame::new()),
+                    FrameDirection::Downstream,
+                )
                 .await?;
         }
         Ok(())
@@ -210,15 +217,22 @@ impl BaseInputTransport {
             FrameType::UserStartedSpeaking(_) => {
                 log::debug!("User started speaking");
                 self.user_speaking.store(true, Ordering::Relaxed);
-                self.frame_processor.push_frame(frame, FrameDirection::Downstream).await?;
+                self.frame_processor
+                    .push_frame(frame, FrameDirection::Downstream)
+                    .await?;
 
                 // Only push StartInterruptionFrame if bot is not speaking
                 let should_push_immediate_interruption = !self.bot_speaking.load(Ordering::Relaxed);
 
-                if should_push_immediate_interruption && self.frame_processor.interruptions_allowed() {
+                if should_push_immediate_interruption
+                    && self.frame_processor.interruptions_allowed()
+                {
                     self.frame_processor.start_interruption().await?;
                     self.frame_processor
-                        .push_frame(FrameType::StartInterruption(StartInterruptionFrame::new()), FrameDirection::Downstream)
+                        .push_frame(
+                            FrameType::StartInterruption(StartInterruptionFrame::new()),
+                            FrameDirection::Downstream,
+                        )
                         .await?;
                 } else if self.bot_speaking.load(Ordering::Relaxed) {
                     log::debug!(
@@ -229,11 +243,16 @@ impl BaseInputTransport {
             FrameType::UserStoppedSpeaking(_) => {
                 log::debug!("User stopped speaking");
                 self.user_speaking.store(false, Ordering::Relaxed);
-                self.frame_processor.push_frame(frame, FrameDirection::Downstream).await?;
-                
+                self.frame_processor
+                    .push_frame(frame, FrameDirection::Downstream)
+                    .await?;
+
                 if self.frame_processor.interruptions_allowed() {
                     self.frame_processor
-                        .push_frame(FrameType::StopInterruption(StopInterruptionFrame::new()), FrameDirection::Downstream)
+                        .push_frame(
+                            FrameType::StopInterruption(StopInterruptionFrame::new()),
+                            FrameDirection::Downstream,
+                        )
                         .await?;
                 }
             }
@@ -261,15 +280,16 @@ impl BaseInputTransport {
         if self.audio_task.is_none() && self.params.audio_in_enabled {
             let (sender, receiver) = mpsc::unbounded_channel();
             self.audio_in_queue = Some(sender);
-            
+
             // Create audio processing task
-            let task_handle = self.frame_processor
+            let task_handle = self
+                .frame_processor
                 .create_task(
                     move |_ctx| Self::audio_task_handler(receiver),
                     Some("audio_input".to_string()),
                 )
                 .await?;
-            
+
             self.audio_task = Some(task_handle);
         }
         Ok(())
@@ -299,7 +319,7 @@ impl BaseInputTransport {
                     // TODO: Add audio filter processing here when implemented
                     // TODO: Add VAD analysis here when implemented
                     // TODO: Add turn analysis here when implemented
-                    
+
                     // For now, just log that we received a frame
                     log::trace!("Received audio frame with {} bytes", frame.audio.len());
                 }
@@ -331,7 +351,9 @@ impl FrameProcessorTrait for BaseInputTransport {
                 // Push StartFrame before start(), because we want StartFrame to be
                 // processed by every processor before any other frame is processed
                 let frame_copy = FrameType::Start(start_frame.clone());
-                self.frame_processor.push_frame(frame_copy, direction).await?;
+                self.frame_processor
+                    .push_frame(frame_copy, direction)
+                    .await?;
                 self.start(&start_frame).await?;
             }
             FrameType::Cancel(_) => {
@@ -351,12 +373,14 @@ impl FrameProcessorTrait for BaseInputTransport {
             }
             FrameType::EmulateUserStartedSpeaking(_) => {
                 log::debug!("Emulating user started speaking");
-                let user_frame = FrameType::UserStartedSpeaking(UserStartedSpeakingFrame::new(true));
+                let user_frame =
+                    FrameType::UserStartedSpeaking(UserStartedSpeakingFrame::new(true));
                 self.handle_user_interruption(user_frame).await?;
             }
             FrameType::EmulateUserStoppedSpeaking(_) => {
                 log::debug!("Emulating user stopped speaking");
-                let user_frame = FrameType::UserStoppedSpeaking(UserStoppedSpeakingFrame::new(true));
+                let user_frame =
+                    FrameType::UserStoppedSpeaking(UserStoppedSpeakingFrame::new(true));
                 self.handle_user_interruption(user_frame).await?;
             }
             // All other system frames
@@ -400,7 +424,7 @@ mod tests {
         let task_manager = Arc::new(TaskManager::new(TaskManagerConfig::default()));
         let params = TransportParams::default();
         let transport = BaseInputTransport::new(params, task_manager, None);
-        
+
         assert_eq!(transport.name(), "BaseInputTransport");
         assert_eq!(transport.sample_rate(), 0);
         assert!(!transport.bot_speaking.load(Ordering::Relaxed));
@@ -413,10 +437,10 @@ mod tests {
         let task_manager = Arc::new(TaskManager::new(TaskManagerConfig::default()));
         let params = TransportParams::default();
         let mut transport = BaseInputTransport::new(params, task_manager, None);
-        
+
         transport.enable_audio_in_stream_on_start(true);
         assert!(transport.params.audio_in_stream_on_start);
-        
+
         transport.enable_audio_in_stream_on_start(false);
         assert!(!transport.params.audio_in_stream_on_start);
     }
@@ -426,14 +450,13 @@ mod tests {
         let task_manager = Arc::new(TaskManager::new(TaskManagerConfig::default()));
         let params = TransportParams::default();
         let mut transport = BaseInputTransport::new(params, task_manager, None);
-        
-        let start_frame = StartFrame::new()
-            .with_sample_rates(48000, 24000);
-        
+
+        let start_frame = StartFrame::new().with_sample_rates(48000, 24000);
+
         transport.start(&start_frame).await.unwrap();
         assert_eq!(transport.sample_rate(), 48000);
         assert!(!transport.paused.load(Ordering::Relaxed));
-        
+
         transport.stop().await.unwrap();
     }
 
@@ -442,12 +465,12 @@ mod tests {
         let task_manager = Arc::new(TaskManager::new(TaskManagerConfig::default()));
         let params = TransportParams::default();
         let mut transport = BaseInputTransport::new(params, task_manager, None);
-        
+
         assert!(!transport.bot_speaking.load(Ordering::Relaxed));
-        
+
         transport.handle_bot_started_speaking().await.unwrap();
         assert!(transport.bot_speaking.load(Ordering::Relaxed));
-        
+
         transport.handle_bot_stopped_speaking().await.unwrap();
         assert!(!transport.bot_speaking.load(Ordering::Relaxed));
     }
@@ -457,10 +480,10 @@ mod tests {
         let task_manager = Arc::new(TaskManager::new(TaskManagerConfig::default()));
         let params = TransportParams::default();
         let mut transport = BaseInputTransport::new(params, task_manager, None);
-        
+
         transport.pause().await.unwrap();
         assert!(transport.paused.load(Ordering::Relaxed));
-        
+
         let start_frame = StartFrame::new();
         transport.start(&start_frame).await.unwrap();
         assert!(!transport.paused.load(Ordering::Relaxed));

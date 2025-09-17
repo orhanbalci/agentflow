@@ -38,16 +38,16 @@ pub trait BaseTransport: Send + Sync {
 pub struct BaseTransportImpl {
     /// Optional name for the transport instance
     name: Option<String>,
-    
+
     /// Optional name for the input processor
     input_name: Option<String>,
-    
+
     /// Optional name for the output processor
     output_name: Option<String>,
-    
+
     /// Input frame processor
     input_processor: Arc<Mutex<FrameProcessor>>,
-    
+
     /// Output frame processor
     output_processor: Arc<Mutex<FrameProcessor>>,
 }
@@ -69,14 +69,16 @@ impl BaseTransportImpl {
     ) -> Self {
         let input_processor_name = input_name.clone().unwrap_or_else(|| "input".to_string());
         let output_processor_name = output_name.clone().unwrap_or_else(|| "output".to_string());
-        
-        let input_processor = Arc::new(Mutex::new(
-            FrameProcessor::new(input_processor_name, Arc::clone(&task_manager))
-        ));
-        
-        let output_processor = Arc::new(Mutex::new(
-            FrameProcessor::new(output_processor_name, Arc::clone(&task_manager))
-        ));
+
+        let input_processor = Arc::new(Mutex::new(FrameProcessor::new(
+            input_processor_name,
+            Arc::clone(&task_manager),
+        )));
+
+        let output_processor = Arc::new(Mutex::new(FrameProcessor::new(
+            output_processor_name,
+            Arc::clone(&task_manager),
+        )));
 
         Self {
             name,
@@ -162,7 +164,12 @@ impl BaseTransportBuilder {
     /// Build the BaseTransportImpl instance
     pub fn build(self) -> Result<BaseTransportImpl, &'static str> {
         let task_manager = self.task_manager.ok_or("TaskManager is required")?;
-        Ok(BaseTransportImpl::new(self.name, self.input_name, self.output_name, task_manager))
+        Ok(BaseTransportImpl::new(
+            self.name,
+            self.input_name,
+            self.output_name,
+            task_manager,
+        ))
     }
 }
 
@@ -212,14 +219,14 @@ mod tests {
     async fn test_base_transport_processors() {
         let task_manager = Arc::new(TaskManager::new(TaskManagerConfig::default()));
         let transport = BaseTransportImpl::new(None, None, None, task_manager);
-        
+
         let input = transport.input();
         let output = transport.output();
-        
+
         // Verify we can access the processors
         let input_guard = input.lock().await;
         let output_guard = output.lock().await;
-        
+
         assert_eq!(input_guard.name(), "input");
         assert_eq!(output_guard.name(), "output");
     }
@@ -228,28 +235,26 @@ mod tests {
     async fn test_base_transport_default_names() {
         let task_manager = Arc::new(TaskManager::new(TaskManagerConfig::default()));
         let transport = BaseTransportImpl::new(None, None, None, task_manager);
-        
+
         assert_eq!(transport.name(), None);
         assert_eq!(transport.input_name(), None);
         assert_eq!(transport.output_name(), None);
-        
+
         // But the processors should have default names
         let input = transport.input();
         let output = transport.output();
-        
+
         let input_guard = input.lock().await;
         let output_guard = output.lock().await;
-        
+
         assert_eq!(input_guard.name(), "input");
         assert_eq!(output_guard.name(), "output");
     }
 
     #[tokio::test]
     async fn test_builder_without_task_manager() {
-        let result = BaseTransportImpl::builder()
-            .with_name("test")
-            .build();
-        
+        let result = BaseTransportImpl::builder().with_name("test").build();
+
         assert!(result.is_err());
         if let Err(error) = result {
             assert_eq!(error, "TaskManager is required");
