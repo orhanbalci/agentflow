@@ -28,7 +28,7 @@ use std::collections::HashMap;
 /// * `video_out_destinations` - List of video output destination identifiers.
 /// * `vad_analyzer` - Voice Activity Detection analyzer instance.
 /// * `turn_analyzer` - Turn-taking analyzer instance for conversation management.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TransportParams {
     // Audio output parameters
     pub audio_out_enabled: bool,

@@ -6,6 +6,10 @@
 
 pub mod mixer;
 pub mod resampler;
+pub mod utils;
 
 pub use mixer::{BaseAudioMixer, MixerResult};
-pub use resampler::{BaseAudioResampler, ResamplerResult, RubatoAudioResampler};
+pub use resampler::{
+    BaseAudioResampler, ResamplerResult, RubatoAudioResampler, RubatoStreamAudioResampler,
+};
+pub use utils::{create_stream_resampler, is_silence};

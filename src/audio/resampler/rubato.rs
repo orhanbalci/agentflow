@@ -12,8 +12,8 @@ use async_trait::async_trait;
 use bytemuck::cast_slice;
 use rubato::{FftFixedIn, Resampler, SincFixedIn};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 
 use super::base::{BaseAudioResampler, ResamplerResult};
 
@@ -326,12 +326,15 @@ impl BaseAudioResampler for RubatoStreamAudioResampler {
                 || state.in_rate != Some(in_rate)
                 || state.out_rate != Some(out_rate)
             {
-                if state.in_rate.is_some() && (state.in_rate != Some(in_rate) || state.out_rate != Some(out_rate)) {
+                if state.in_rate.is_some()
+                    && (state.in_rate != Some(in_rate) || state.out_rate != Some(out_rate))
+                {
                     return Err(format!(
                         "RubatoStreamAudioResampler cannot be reused with different sample rates: \
                          expected {:?}->{:?}, got {:?}->{:?}",
                         state.in_rate, state.out_rate, in_rate, out_rate
-                    ).into());
+                    )
+                    .into());
                 }
                 drop(state); // Release the lock before calling initialize
                 self.initialize_resampler(in_rate, out_rate).await?;
@@ -556,7 +559,10 @@ mod tests {
         }
 
         // First resample
-        resampler.resample(audio_data.clone(), 44100, 22050).await.unwrap();
+        resampler
+            .resample(audio_data.clone(), 44100, 22050)
+            .await
+            .unwrap();
 
         // Try to resample with different rates - should error
         let result = resampler.resample(audio_data, 48000, 22050).await;

@@ -56,7 +56,7 @@ impl fmt::Display for KeypadEntry {
 }
 
 /// Base frame trait for all frames in the AgentFlow pipeline
-pub trait Frame {
+pub trait Frame: Send {
     /// Get the unique identifier for this frame
     fn id(&self) -> u64;
 
@@ -667,6 +667,67 @@ impl fmt::Display for OutputImageRawFrame {
     }
 }
 
+/// Sprite frame containing multiple images for animation/cycling
+#[derive(Debug, Clone)]
+pub struct SpriteFrame {
+    pub data_frame: DataFrame,
+    pub images: Vec<OutputImageRawFrame>,
+}
+
+impl SpriteFrame {
+    pub fn new(images: Vec<OutputImageRawFrame>) -> Self {
+        Self {
+            data_frame: DataFrame::new("SpriteFrame"),
+            images,
+        }
+    }
+}
+
+impl Frame for SpriteFrame {
+    fn id(&self) -> u64 {
+        self.data_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.data_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.data_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.data_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.data_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.data_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.data_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.data_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.data_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.data_frame.set_transport_destination(destination)
+    }
+}
+
+impl fmt::Display for SpriteFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}(pts: {:?}, images: {})",
+            self.name(),
+            self.pts(),
+            self.images.len()
+        )
+    }
+}
+
 /// Text data frame for passing text through the pipeline
 #[derive(Debug, Clone)]
 pub struct TextFrame {
@@ -1260,6 +1321,53 @@ impl Frame for BotStartedSpeakingFrame {
     }
 }
 
+/// Frame indicating bot is speaking (periodic frame while speaking)
+#[derive(Debug, Clone)]
+pub struct BotSpeakingFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl BotSpeakingFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("BotSpeakingFrame"),
+        }
+    }
+}
+
+impl Frame for BotSpeakingFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
 /// Frame indicating bot stopped speaking
 #[derive(Debug, Clone)]
 pub struct BotStoppedSpeakingFrame {
@@ -1705,6 +1813,7 @@ pub enum FrameType {
     // Data frames
     OutputAudioRaw(OutputAudioRawFrame),
     OutputImageRaw(OutputImageRawFrame),
+    Sprite(SpriteFrame),
     InputAudioRaw(InputAudioRawFrame),
     InputImageRaw(InputImageRawFrame),
     Text(TextFrame),
@@ -1720,6 +1829,7 @@ pub enum FrameType {
     UserStoppedSpeaking(UserStoppedSpeakingFrame),
     BotInterruption(BotInterruptionFrame),
     BotStartedSpeaking(BotStartedSpeakingFrame),
+    BotSpeaking(BotSpeakingFrame),
     BotStoppedSpeaking(BotStoppedSpeakingFrame),
     EmulateUserStartedSpeaking(EmulateUserStartedSpeakingFrame),
     EmulateUserStoppedSpeaking(EmulateUserStoppedSpeakingFrame),
@@ -1736,6 +1846,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.id(),
             FrameType::OutputImageRaw(f) => f.id(),
+            FrameType::Sprite(f) => f.id(),
             FrameType::InputAudioRaw(f) => f.id(),
             FrameType::InputImageRaw(f) => f.id(),
             FrameType::Text(f) => f.id(),
@@ -1749,6 +1860,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.id(),
             FrameType::BotInterruption(f) => f.id(),
             FrameType::BotStartedSpeaking(f) => f.id(),
+            FrameType::BotSpeaking(f) => f.id(),
             FrameType::BotStoppedSpeaking(f) => f.id(),
             FrameType::EmulateUserStartedSpeaking(f) => f.id(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.id(),
@@ -1763,6 +1875,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.name(),
             FrameType::OutputImageRaw(f) => f.name(),
+            FrameType::Sprite(f) => f.name(),
             FrameType::InputAudioRaw(f) => f.name(),
             FrameType::InputImageRaw(f) => f.name(),
             FrameType::Text(f) => f.name(),
@@ -1776,6 +1889,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.name(),
             FrameType::BotInterruption(f) => f.name(),
             FrameType::BotStartedSpeaking(f) => f.name(),
+            FrameType::BotSpeaking(f) => f.name(),
             FrameType::BotStoppedSpeaking(f) => f.name(),
             FrameType::EmulateUserStartedSpeaking(f) => f.name(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.name(),
@@ -1790,6 +1904,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.pts(),
             FrameType::OutputImageRaw(f) => f.pts(),
+            FrameType::Sprite(f) => f.pts(),
             FrameType::InputAudioRaw(f) => f.pts(),
             FrameType::InputImageRaw(f) => f.pts(),
             FrameType::Text(f) => f.pts(),
@@ -1803,6 +1918,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.pts(),
             FrameType::BotInterruption(f) => f.pts(),
             FrameType::BotStartedSpeaking(f) => f.pts(),
+            FrameType::BotSpeaking(f) => f.pts(),
             FrameType::BotStoppedSpeaking(f) => f.pts(),
             FrameType::EmulateUserStartedSpeaking(f) => f.pts(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.pts(),
@@ -1817,6 +1933,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_pts(pts),
             FrameType::OutputImageRaw(f) => f.set_pts(pts),
+            FrameType::Sprite(f) => f.set_pts(pts),
             FrameType::InputAudioRaw(f) => f.set_pts(pts),
             FrameType::InputImageRaw(f) => f.set_pts(pts),
             FrameType::Text(f) => f.set_pts(pts),
@@ -1830,6 +1947,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.set_pts(pts),
             FrameType::BotInterruption(f) => f.set_pts(pts),
             FrameType::BotStartedSpeaking(f) => f.set_pts(pts),
+            FrameType::BotSpeaking(f) => f.set_pts(pts),
             FrameType::BotStoppedSpeaking(f) => f.set_pts(pts),
             FrameType::EmulateUserStartedSpeaking(f) => f.set_pts(pts),
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_pts(pts),
@@ -1844,6 +1962,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata(),
             FrameType::OutputImageRaw(f) => f.metadata(),
+            FrameType::Sprite(f) => f.metadata(),
             FrameType::InputAudioRaw(f) => f.metadata(),
             FrameType::InputImageRaw(f) => f.metadata(),
             FrameType::Text(f) => f.metadata(),
@@ -1857,6 +1976,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.metadata(),
             FrameType::BotInterruption(f) => f.metadata(),
             FrameType::BotStartedSpeaking(f) => f.metadata(),
+            FrameType::BotSpeaking(f) => f.metadata(),
             FrameType::BotStoppedSpeaking(f) => f.metadata(),
             FrameType::EmulateUserStartedSpeaking(f) => f.metadata(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.metadata(),
@@ -1871,6 +1991,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata_mut(),
             FrameType::OutputImageRaw(f) => f.metadata_mut(),
+            FrameType::Sprite(f) => f.metadata_mut(),
             FrameType::InputAudioRaw(f) => f.metadata_mut(),
             FrameType::InputImageRaw(f) => f.metadata_mut(),
             FrameType::Text(f) => f.metadata_mut(),
@@ -1884,6 +2005,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.metadata_mut(),
             FrameType::BotInterruption(f) => f.metadata_mut(),
             FrameType::BotStartedSpeaking(f) => f.metadata_mut(),
+            FrameType::BotSpeaking(f) => f.metadata_mut(),
             FrameType::BotStoppedSpeaking(f) => f.metadata_mut(),
             FrameType::EmulateUserStartedSpeaking(f) => f.metadata_mut(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.metadata_mut(),
@@ -1898,6 +2020,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_source(),
             FrameType::OutputImageRaw(f) => f.transport_source(),
+            FrameType::Sprite(f) => f.transport_source(),
             FrameType::InputAudioRaw(f) => f.transport_source(),
             FrameType::InputImageRaw(f) => f.transport_source(),
             FrameType::Text(f) => f.transport_source(),
@@ -1911,6 +2034,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.transport_source(),
             FrameType::BotInterruption(f) => f.transport_source(),
             FrameType::BotStartedSpeaking(f) => f.transport_source(),
+            FrameType::BotSpeaking(f) => f.transport_source(),
             FrameType::BotStoppedSpeaking(f) => f.transport_source(),
             FrameType::EmulateUserStartedSpeaking(f) => f.transport_source(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.transport_source(),
@@ -1925,6 +2049,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_source(source),
             FrameType::OutputImageRaw(f) => f.set_transport_source(source),
+            FrameType::Sprite(f) => f.set_transport_source(source),
             FrameType::InputAudioRaw(f) => f.set_transport_source(source),
             FrameType::InputImageRaw(f) => f.set_transport_source(source),
             FrameType::Text(f) => f.set_transport_source(source),
@@ -1938,6 +2063,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.set_transport_source(source),
             FrameType::BotInterruption(f) => f.set_transport_source(source),
             FrameType::BotStartedSpeaking(f) => f.set_transport_source(source),
+            FrameType::BotSpeaking(f) => f.set_transport_source(source),
             FrameType::BotStoppedSpeaking(f) => f.set_transport_source(source),
             FrameType::EmulateUserStartedSpeaking(f) => f.set_transport_source(source),
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_source(source),
@@ -1952,6 +2078,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_destination(),
             FrameType::OutputImageRaw(f) => f.transport_destination(),
+            FrameType::Sprite(f) => f.transport_destination(),
             FrameType::InputAudioRaw(f) => f.transport_destination(),
             FrameType::InputImageRaw(f) => f.transport_destination(),
             FrameType::Text(f) => f.transport_destination(),
@@ -1965,6 +2092,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.transport_destination(),
             FrameType::BotInterruption(f) => f.transport_destination(),
             FrameType::BotStartedSpeaking(f) => f.transport_destination(),
+            FrameType::BotSpeaking(f) => f.transport_destination(),
             FrameType::BotStoppedSpeaking(f) => f.transport_destination(),
             FrameType::EmulateUserStartedSpeaking(f) => f.transport_destination(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.transport_destination(),
@@ -1979,6 +2107,7 @@ impl Frame for FrameType {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_destination(destination),
             FrameType::OutputImageRaw(f) => f.set_transport_destination(destination),
+            FrameType::Sprite(f) => f.set_transport_destination(destination),
             FrameType::InputAudioRaw(f) => f.set_transport_destination(destination),
             FrameType::InputImageRaw(f) => f.set_transport_destination(destination),
             FrameType::Text(f) => f.set_transport_destination(destination),
@@ -1992,6 +2121,7 @@ impl Frame for FrameType {
             FrameType::StopInterruption(f) => f.set_transport_destination(destination),
             FrameType::BotInterruption(f) => f.set_transport_destination(destination),
             FrameType::BotStartedSpeaking(f) => f.set_transport_destination(destination),
+            FrameType::BotSpeaking(f) => f.set_transport_destination(destination),
             FrameType::BotStoppedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::EmulateUserStartedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_destination(destination),
@@ -2008,6 +2138,7 @@ impl fmt::Display for FrameType {
         match self {
             FrameType::OutputAudioRaw(frame) => frame.fmt(f),
             FrameType::OutputImageRaw(frame) => frame.fmt(f),
+            FrameType::Sprite(frame) => frame.fmt(f),
             FrameType::InputAudioRaw(frame) => write!(f, "{}", frame.name()),
             FrameType::InputImageRaw(frame) => write!(f, "{}", frame.name()),
             FrameType::Text(frame) => frame.fmt(f),
@@ -2021,6 +2152,7 @@ impl fmt::Display for FrameType {
             FrameType::StopInterruption(frame) => write!(f, "{}", frame.name()),
             FrameType::BotInterruption(frame) => write!(f, "{}", frame.name()),
             FrameType::BotStartedSpeaking(frame) => write!(f, "{}", frame.name()),
+            FrameType::BotSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::BotStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::EmulateUserStartedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::EmulateUserStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
