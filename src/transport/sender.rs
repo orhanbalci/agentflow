@@ -18,30 +18,6 @@ use crate::{
     SpriteFrame, StartFrame, StartInterruptionFrame,
 };
 
-pub trait Clock: Send + Sync {
-    /// Get current time in nanoseconds
-    fn get_time(&self) -> u64;
-}
-
-/// Default clock implementation using system time
-pub struct SystemClock {
-    start_time: Instant,
-}
-
-impl SystemClock {
-    pub fn new() -> Self {
-        Self {
-            start_time: Instant::now(),
-        }
-    }
-}
-
-impl Clock for SystemClock {
-    fn get_time(&self) -> u64 {
-        self.start_time.elapsed().as_nanos() as u64
-    }
-}
-
 /// Convert nanoseconds to seconds
 pub fn nanoseconds_to_seconds(nanos: u64) -> f64 {
     nanos as f64 / 1_000_000_000.0
@@ -704,7 +680,7 @@ impl MediaSender {
 
             // Process frames that are ready
             let clock = transport.get_clock();
-            let current_time = clock.get_time();
+            let current_time = clock.get_time().unwrap_or(0);
 
             while let Some((ts, _, _)) = frames.first() {
                 if *ts <= current_time {

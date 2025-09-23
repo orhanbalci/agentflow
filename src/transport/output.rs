@@ -7,38 +7,13 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::Mutex;
 
 use crate::frames::{Frame, FrameType, OutputAudioRawFrame, OutputImageRawFrame};
 use crate::processors::frame::{FrameDirection, FrameProcessor, FrameProcessorTrait};
 use crate::task_manager::TaskManager;
 use crate::transport::params::TransportParams;
-
-/// Clock trait for timing operations
-pub trait Clock: Send + Sync {
-    /// Get current time in nanoseconds
-    fn get_time(&self) -> u64;
-}
-
-/// Default clock implementation using system time
-pub struct SystemClock {
-    start_time: Instant,
-}
-
-impl SystemClock {
-    pub fn new() -> Self {
-        Self {
-            start_time: Instant::now(),
-        }
-    }
-}
-
-impl Clock for SystemClock {
-    fn get_time(&self) -> u64 {
-        self.start_time.elapsed().as_nanos() as u64
-    }
-}
+use crate::{BaseClock, SystemClock};
 
 /// Trait for output transport functionality
 #[async_trait]
@@ -62,7 +37,7 @@ pub trait BaseOutputTransportTrait: Send + Sync {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
     /// Get the clock instance
-    fn get_clock(&self) -> Arc<dyn Clock>;
+    fn get_clock(&self) -> Arc<dyn BaseClock>;
 
     /// Check if interruptions are allowed
     fn interruptions_allowed(&self) -> bool;
@@ -158,7 +133,7 @@ impl BaseOutputTransport {
     }
 
     /// Get the clock for timing
-    pub fn get_clock(&self) -> Arc<dyn Clock> {
+    pub fn get_clock(&self) -> Arc<dyn BaseClock> {
         self.clock.clone()
     }
 
@@ -268,7 +243,7 @@ impl BaseOutputTransportTrait for BaseOutputTransport {
         Ok(())
     }
 
-    fn get_clock(&self) -> Arc<dyn Clock> {
+    fn get_clock(&self) -> Arc<dyn BaseClock> {
         self.clock.clone()
     }
 

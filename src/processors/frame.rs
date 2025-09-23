@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;
 
 use crate::task_manager::{TaskHandle, TaskManager, WatchdogConfig};
-use crate::{CancelFrame, ErrorFrame, Frame, FrameType, StartFrame};
+use crate::{BaseClock, CancelFrame, ErrorFrame, Frame, FrameType, StartFrame};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FrameDirection {
@@ -112,11 +112,6 @@ pub trait FrameProcessorTrait: Send + Sync {
     fn can_generate_metrics(&self) -> bool {
         false
     }
-}
-
-// Clock trait for timing operations
-pub trait BaseClock: Send + Sync {
-    fn now(&self) -> std::time::Instant;
 }
 
 // Interruption strategy trait
@@ -636,7 +631,7 @@ impl FrameProcessor {
         // Notify observer with timestamp if available
         if let Some(observer) = &self.observer {
             let timestamp = if let Some(clock) = &self.clock {
-                clock.now().elapsed().as_millis() as u64
+                clock.get_time().unwrap_or(0)
             } else {
                 0
             };
