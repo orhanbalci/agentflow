@@ -395,6 +395,95 @@ impl Frame for MixerControlFrame {
     }
 }
 
+/// Frame for controlling audio filters in input transports
+#[derive(Debug, Clone)]
+pub struct FilterControlFrame {
+    pub control_frame: ControlFrame,
+    pub enabled: Option<bool>,
+    pub parameters: HashMap<String, String>,
+    pub command: Option<String>,
+}
+
+impl FilterControlFrame {
+    pub fn new() -> Self {
+        Self {
+            control_frame: ControlFrame::new("FilterControlFrame"),
+            enabled: None,
+            parameters: HashMap::new(),
+            command: None,
+        }
+    }
+
+    pub fn enable() -> Self {
+        Self {
+            control_frame: ControlFrame::new("FilterControlFrame"),
+            enabled: Some(true),
+            parameters: HashMap::new(),
+            command: None,
+        }
+    }
+
+    pub fn disable() -> Self {
+        Self {
+            control_frame: ControlFrame::new("FilterControlFrame"),
+            enabled: Some(false),
+            parameters: HashMap::new(),
+            command: None,
+        }
+    }
+
+    pub fn with_parameters(parameters: HashMap<String, String>) -> Self {
+        Self {
+            control_frame: ControlFrame::new("FilterControlFrame"),
+            enabled: None,
+            parameters,
+            command: None,
+        }
+    }
+
+    pub fn with_command(command: String) -> Self {
+        Self {
+            control_frame: ControlFrame::new("FilterControlFrame"),
+            enabled: None,
+            parameters: HashMap::new(),
+            command: Some(command),
+        }
+    }
+}
+
+impl Frame for FilterControlFrame {
+    fn id(&self) -> u64 {
+        self.control_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.control_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.control_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.control_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.control_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.control_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.control_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.control_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.control_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.control_frame.set_transport_destination(destination)
+    }
+}
+
 /// Frame to enable or disable the mixer
 #[derive(Debug, Clone)]
 pub struct MixerEnableFrame {
@@ -1837,6 +1926,7 @@ pub enum FrameType {
     // Control frames
     End(EndFrame),
     Stop(StopFrame),
+    FilterControl(FilterControlFrame),
     LLMFullResponseStart(LLMFullResponseStartFrame),
     LLMFullResponseEnd(LLMFullResponseEndFrame),
 }
@@ -1866,6 +1956,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.id(),
             FrameType::End(f) => f.id(),
             FrameType::Stop(f) => f.id(),
+            FrameType::FilterControl(f) => f.id(),
             FrameType::LLMFullResponseStart(f) => f.id(),
             FrameType::LLMFullResponseEnd(f) => f.id(),
         }
@@ -1895,6 +1986,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.name(),
             FrameType::End(f) => f.name(),
             FrameType::Stop(f) => f.name(),
+            FrameType::FilterControl(f) => f.name(),
             FrameType::LLMFullResponseStart(f) => f.name(),
             FrameType::LLMFullResponseEnd(f) => f.name(),
         }
@@ -1924,6 +2016,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.pts(),
             FrameType::End(f) => f.pts(),
             FrameType::Stop(f) => f.pts(),
+            FrameType::FilterControl(f) => f.pts(),
             FrameType::LLMFullResponseStart(f) => f.pts(),
             FrameType::LLMFullResponseEnd(f) => f.pts(),
         }
@@ -1953,6 +2046,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_pts(pts),
             FrameType::End(f) => f.set_pts(pts),
             FrameType::Stop(f) => f.set_pts(pts),
+            FrameType::FilterControl(f) => f.set_pts(pts),
             FrameType::LLMFullResponseStart(f) => f.set_pts(pts),
             FrameType::LLMFullResponseEnd(f) => f.set_pts(pts),
         }
@@ -1982,6 +2076,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.metadata(),
             FrameType::End(f) => f.metadata(),
             FrameType::Stop(f) => f.metadata(),
+            FrameType::FilterControl(f) => f.metadata(),
             FrameType::LLMFullResponseStart(f) => f.metadata(),
             FrameType::LLMFullResponseEnd(f) => f.metadata(),
         }
@@ -2011,6 +2106,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.metadata_mut(),
             FrameType::End(f) => f.metadata_mut(),
             FrameType::Stop(f) => f.metadata_mut(),
+            FrameType::FilterControl(f) => f.metadata_mut(),
             FrameType::LLMFullResponseStart(f) => f.metadata_mut(),
             FrameType::LLMFullResponseEnd(f) => f.metadata_mut(),
         }
@@ -2040,6 +2136,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.transport_source(),
             FrameType::End(f) => f.transport_source(),
             FrameType::Stop(f) => f.transport_source(),
+            FrameType::FilterControl(f) => f.transport_source(),
             FrameType::LLMFullResponseStart(f) => f.transport_source(),
             FrameType::LLMFullResponseEnd(f) => f.transport_source(),
         }
@@ -2069,6 +2166,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_source(source),
             FrameType::End(f) => f.set_transport_source(source),
             FrameType::Stop(f) => f.set_transport_source(source),
+            FrameType::FilterControl(f) => f.set_transport_source(source),
             FrameType::LLMFullResponseStart(f) => f.set_transport_source(source),
             FrameType::LLMFullResponseEnd(f) => f.set_transport_source(source),
         }
@@ -2098,6 +2196,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.transport_destination(),
             FrameType::End(f) => f.transport_destination(),
             FrameType::Stop(f) => f.transport_destination(),
+            FrameType::FilterControl(f) => f.transport_destination(),
             FrameType::LLMFullResponseStart(f) => f.transport_destination(),
             FrameType::LLMFullResponseEnd(f) => f.transport_destination(),
         }
@@ -2127,6 +2226,7 @@ impl Frame for FrameType {
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::End(f) => f.set_transport_destination(destination),
             FrameType::Stop(f) => f.set_transport_destination(destination),
+            FrameType::FilterControl(f) => f.set_transport_destination(destination),
             FrameType::LLMFullResponseStart(f) => f.set_transport_destination(destination),
             FrameType::LLMFullResponseEnd(f) => f.set_transport_destination(destination),
         }
@@ -2158,6 +2258,7 @@ impl fmt::Display for FrameType {
             FrameType::EmulateUserStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::End(frame) => write!(f, "{}", frame.name()),
             FrameType::Stop(frame) => write!(f, "{}", frame.name()),
+            FrameType::FilterControl(frame) => write!(f, "{}", frame.name()),
             FrameType::LLMFullResponseStart(frame) => write!(f, "{}", frame.name()),
             FrameType::LLMFullResponseEnd(frame) => write!(f, "{}", frame.name()),
         }
