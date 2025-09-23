@@ -1598,6 +1598,151 @@ impl Frame for EmulateUserStoppedSpeakingFrame {
     }
 }
 
+/// Frame indicating that the output transport is ready to receive frames
+#[derive(Debug, Clone)]
+pub struct OutputTransportReadyFrame {
+    pub system_frame: SystemFrame,
+}
+
+impl OutputTransportReadyFrame {
+    pub fn new() -> Self {
+        Self {
+            system_frame: SystemFrame::new("OutputTransportReadyFrame"),
+        }
+    }
+}
+
+impl Frame for OutputTransportReadyFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame for sending transport messages
+#[derive(Debug, Clone)]
+pub struct TransportMessageFrame {
+    pub system_frame: SystemFrame,
+    pub message: String,
+}
+
+impl TransportMessageFrame {
+    pub fn new(message: String) -> Self {
+        Self {
+            system_frame: SystemFrame::new("TransportMessageFrame"),
+            message,
+        }
+    }
+}
+
+impl Frame for TransportMessageFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
+/// Frame for sending urgent transport messages
+#[derive(Debug, Clone)]
+pub struct TransportMessageUrgentFrame {
+    pub system_frame: SystemFrame,
+    pub message: String,
+}
+
+impl TransportMessageUrgentFrame {
+    pub fn new(message: String) -> Self {
+        Self {
+            system_frame: SystemFrame::new("TransportMessageUrgentFrame"),
+            message,
+        }
+    }
+}
+
+impl Frame for TransportMessageUrgentFrame {
+    fn id(&self) -> u64 {
+        self.system_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.system_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.system_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.system_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.system_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.system_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.system_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.system_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.system_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.system_frame.set_transport_destination(destination)
+    }
+}
+
 /// Frame indicating transport should stop temporarily
 #[derive(Debug, Clone)]
 pub struct StopFrame {
@@ -1922,6 +2067,9 @@ pub enum FrameType {
     BotStoppedSpeaking(BotStoppedSpeakingFrame),
     EmulateUserStartedSpeaking(EmulateUserStartedSpeakingFrame),
     EmulateUserStoppedSpeaking(EmulateUserStoppedSpeakingFrame),
+    OutputTransportReady(OutputTransportReadyFrame),
+    TransportMessage(TransportMessageFrame),
+    TransportMessageUrgent(TransportMessageUrgentFrame),
 
     // Control frames
     End(EndFrame),
@@ -1954,6 +2102,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.id(),
             FrameType::EmulateUserStartedSpeaking(f) => f.id(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.id(),
+            FrameType::OutputTransportReady(f) => f.id(),
+            FrameType::TransportMessage(f) => f.id(),
+            FrameType::TransportMessageUrgent(f) => f.id(),
             FrameType::End(f) => f.id(),
             FrameType::Stop(f) => f.id(),
             FrameType::FilterControl(f) => f.id(),
@@ -1984,6 +2135,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.name(),
             FrameType::EmulateUserStartedSpeaking(f) => f.name(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.name(),
+            FrameType::OutputTransportReady(f) => f.name(),
+            FrameType::TransportMessage(f) => f.name(),
+            FrameType::TransportMessageUrgent(f) => f.name(),
             FrameType::End(f) => f.name(),
             FrameType::Stop(f) => f.name(),
             FrameType::FilterControl(f) => f.name(),
@@ -2014,6 +2168,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.pts(),
             FrameType::EmulateUserStartedSpeaking(f) => f.pts(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.pts(),
+            FrameType::OutputTransportReady(f) => f.pts(),
+            FrameType::TransportMessage(f) => f.pts(),
+            FrameType::TransportMessageUrgent(f) => f.pts(),
             FrameType::End(f) => f.pts(),
             FrameType::Stop(f) => f.pts(),
             FrameType::FilterControl(f) => f.pts(),
@@ -2044,6 +2201,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.set_pts(pts),
             FrameType::EmulateUserStartedSpeaking(f) => f.set_pts(pts),
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_pts(pts),
+            FrameType::OutputTransportReady(f) => f.set_pts(pts),
+            FrameType::TransportMessage(f) => f.set_pts(pts),
+            FrameType::TransportMessageUrgent(f) => f.set_pts(pts),
             FrameType::End(f) => f.set_pts(pts),
             FrameType::Stop(f) => f.set_pts(pts),
             FrameType::FilterControl(f) => f.set_pts(pts),
@@ -2074,6 +2234,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.metadata(),
             FrameType::EmulateUserStartedSpeaking(f) => f.metadata(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.metadata(),
+            FrameType::OutputTransportReady(f) => f.metadata(),
+            FrameType::TransportMessage(f) => f.metadata(),
+            FrameType::TransportMessageUrgent(f) => f.metadata(),
             FrameType::End(f) => f.metadata(),
             FrameType::Stop(f) => f.metadata(),
             FrameType::FilterControl(f) => f.metadata(),
@@ -2104,6 +2267,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.metadata_mut(),
             FrameType::EmulateUserStartedSpeaking(f) => f.metadata_mut(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.metadata_mut(),
+            FrameType::OutputTransportReady(f) => f.metadata_mut(),
+            FrameType::TransportMessage(f) => f.metadata_mut(),
+            FrameType::TransportMessageUrgent(f) => f.metadata_mut(),
             FrameType::End(f) => f.metadata_mut(),
             FrameType::Stop(f) => f.metadata_mut(),
             FrameType::FilterControl(f) => f.metadata_mut(),
@@ -2134,6 +2300,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.transport_source(),
             FrameType::EmulateUserStartedSpeaking(f) => f.transport_source(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.transport_source(),
+            FrameType::OutputTransportReady(f) => f.transport_source(),
+            FrameType::TransportMessage(f) => f.transport_source(),
+            FrameType::TransportMessageUrgent(f) => f.transport_source(),
             FrameType::End(f) => f.transport_source(),
             FrameType::Stop(f) => f.transport_source(),
             FrameType::FilterControl(f) => f.transport_source(),
@@ -2164,6 +2333,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.set_transport_source(source),
             FrameType::EmulateUserStartedSpeaking(f) => f.set_transport_source(source),
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_source(source),
+            FrameType::OutputTransportReady(f) => f.set_transport_source(source),
+            FrameType::TransportMessage(f) => f.set_transport_source(source),
+            FrameType::TransportMessageUrgent(f) => f.set_transport_source(source),
             FrameType::End(f) => f.set_transport_source(source),
             FrameType::Stop(f) => f.set_transport_source(source),
             FrameType::FilterControl(f) => f.set_transport_source(source),
@@ -2194,6 +2366,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.transport_destination(),
             FrameType::EmulateUserStartedSpeaking(f) => f.transport_destination(),
             FrameType::EmulateUserStoppedSpeaking(f) => f.transport_destination(),
+            FrameType::OutputTransportReady(f) => f.transport_destination(),
+            FrameType::TransportMessage(f) => f.transport_destination(),
+            FrameType::TransportMessageUrgent(f) => f.transport_destination(),
             FrameType::End(f) => f.transport_destination(),
             FrameType::Stop(f) => f.transport_destination(),
             FrameType::FilterControl(f) => f.transport_destination(),
@@ -2224,6 +2399,9 @@ impl Frame for FrameType {
             FrameType::BotStoppedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::EmulateUserStartedSpeaking(f) => f.set_transport_destination(destination),
             FrameType::EmulateUserStoppedSpeaking(f) => f.set_transport_destination(destination),
+            FrameType::OutputTransportReady(f) => f.set_transport_destination(destination),
+            FrameType::TransportMessage(f) => f.set_transport_destination(destination),
+            FrameType::TransportMessageUrgent(f) => f.set_transport_destination(destination),
             FrameType::End(f) => f.set_transport_destination(destination),
             FrameType::Stop(f) => f.set_transport_destination(destination),
             FrameType::FilterControl(f) => f.set_transport_destination(destination),
@@ -2256,6 +2434,9 @@ impl fmt::Display for FrameType {
             FrameType::BotStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::EmulateUserStartedSpeaking(frame) => write!(f, "{}", frame.name()),
             FrameType::EmulateUserStoppedSpeaking(frame) => write!(f, "{}", frame.name()),
+            FrameType::OutputTransportReady(frame) => write!(f, "{}", frame.name()),
+            FrameType::TransportMessage(frame) => write!(f, "{}", frame.name()),
+            FrameType::TransportMessageUrgent(frame) => write!(f, "{}", frame.name()),
             FrameType::End(frame) => write!(f, "{}", frame.name()),
             FrameType::Stop(frame) => write!(f, "{}", frame.name()),
             FrameType::FilterControl(frame) => write!(f, "{}", frame.name()),
@@ -2282,6 +2463,9 @@ impl FrameType {
                 | FrameType::BotStoppedSpeaking(_)
                 | FrameType::EmulateUserStartedSpeaking(_)
                 | FrameType::EmulateUserStoppedSpeaking(_)
+                | FrameType::OutputTransportReady(_)
+                | FrameType::TransportMessage(_)
+                | FrameType::TransportMessageUrgent(_)
         )
     }
 
