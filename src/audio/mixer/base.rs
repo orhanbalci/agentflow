@@ -19,7 +19,7 @@ pub type MixerResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 /// generated from the mixer. Control frames can be used to update mixer settings
 /// or to enable/disable the mixer at runtime.
 #[async_trait::async_trait]
-pub trait BaseAudioMixer: Send + Sync {
+pub trait BaseAudioMixer: Send + Sync + std::fmt::Debug {
     /// Initialize the mixer when the output transport starts.
     ///
     /// This will be called from the output transport when the transport is

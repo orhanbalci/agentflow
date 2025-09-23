@@ -24,5 +24,5 @@ pub mod sender;
 pub use base::{BaseTransport, BaseTransportBuilder, BaseTransportImpl};
 pub use input::BaseInputTransport;
 pub use output::{BaseOutputTransport, BaseOutputTransportTrait};
-pub use params::{AudioFilterHandle, AudioMixerHandle, TransportParams};
+pub use params::{AudioFilterHandle, AudioMixerConfig, TransportParams};
 pub use sender::MediaSender;

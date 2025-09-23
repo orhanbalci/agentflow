@@ -30,6 +30,7 @@ struct SoundData {
 ///
 /// Multiple files can be loaded, each with a different name. The mixer can
 /// switch between files, adjust volume, and enable/disable looping at runtime.
+#[derive(Debug)]
 pub struct SoundfileMixer {
     sound_files: HashMap<String, String>,
     default_sound: String,

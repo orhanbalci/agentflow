@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use crate::audio::mixer::BaseAudioMixer;
 
 /// Configuration parameters for transport implementations.
 ///
@@ -104,23 +106,8 @@ impl Default for TransportParams {
 /// Audio mixer configuration that can be either a single mixer or a mapping
 #[derive(Debug, Clone)]
 pub enum AudioMixerConfig {
-    Single(AudioMixerHandle),
-    Mapping(HashMap<Option<String>, AudioMixerHandle>),
-}
-
-/// Handle for audio mixer implementations
-#[derive(Debug, Clone)]
-pub struct AudioMixerHandle {
-    pub id: String,
-    pub config: AudioMixerType,
-}
-
-/// Types of audio mixers
-#[derive(Debug, Clone)]
-pub enum AudioMixerType {
-    Simple,
-    Multi,
-    Custom(String),
+    Single(Arc<dyn BaseAudioMixer>),
+    Mapping(HashMap<Option<String>, Arc<dyn BaseAudioMixer>>),
 }
 
 /// Handle for audio filter implementations
@@ -199,29 +186,6 @@ pub trait TurnAnalyzer: Send + Sync {
 }
 
 // Implementations for handle types
-impl AudioMixerHandle {
-    pub fn simple(id: String) -> Self {
-        Self {
-            id,
-            config: AudioMixerType::Simple,
-        }
-    }
-
-    pub fn multi(id: String) -> Self {
-        Self {
-            id,
-            config: AudioMixerType::Multi,
-        }
-    }
-
-    pub fn custom(id: String, custom_type: String) -> Self {
-        Self {
-            id,
-            config: AudioMixerType::Custom(custom_type),
-        }
-    }
-}
-
 impl AudioFilterHandle {
     pub fn low_pass(id: String, cutoff: f32) -> Self {
         Self {
