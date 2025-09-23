@@ -1,6 +1,7 @@
+use crate::audio::filter::BaseAudioFilter;
+use crate::audio::mixer::BaseAudioMixer;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::audio::mixer::BaseAudioMixer;
 
 /// Configuration parameters for transport implementations.
 ///
@@ -110,22 +111,8 @@ pub enum AudioMixerConfig {
     Mapping(HashMap<Option<String>, Arc<dyn BaseAudioMixer>>),
 }
 
-/// Handle for audio filter implementations
-#[derive(Debug, Clone)]
-pub struct AudioFilterHandle {
-    pub id: String,
-    pub config: AudioFilterType,
-}
-
-/// Types of audio filters
-#[derive(Debug, Clone)]
-pub enum AudioFilterType {
-    LowPass { cutoff: f32 },
-    HighPass { cutoff: f32 },
-    Bandpass { low: f32, high: f32 },
-    NoiseReduction,
-    Custom(String),
-}
+/// Audio filter configuration using BaseAudioFilter trait
+pub type AudioFilterHandle = Arc<dyn BaseAudioFilter>;
 
 /// Handle for Voice Activity Detection analyzer implementations
 #[derive(Debug, Clone)]
@@ -170,11 +157,6 @@ pub trait AudioMixer: Send + Sync {
     fn mix(&self, inputs: Vec<&[f32]>) -> Vec<f32>;
 }
 
-/// Trait for audio filter implementations
-pub trait AudioFilter: Send + Sync {
-    fn apply(&self, audio: &[f32]) -> Vec<f32>;
-}
-
 /// Trait for Voice Activity Detection analyzer implementations
 pub trait VadAnalyzer: Send + Sync {
     fn analyze(&self, audio: &[f32]) -> bool;
@@ -186,43 +168,6 @@ pub trait TurnAnalyzer: Send + Sync {
 }
 
 // Implementations for handle types
-impl AudioFilterHandle {
-    pub fn low_pass(id: String, cutoff: f32) -> Self {
-        Self {
-            id,
-            config: AudioFilterType::LowPass { cutoff },
-        }
-    }
-
-    pub fn high_pass(id: String, cutoff: f32) -> Self {
-        Self {
-            id,
-            config: AudioFilterType::HighPass { cutoff },
-        }
-    }
-
-    pub fn bandpass(id: String, low: f32, high: f32) -> Self {
-        Self {
-            id,
-            config: AudioFilterType::Bandpass { low, high },
-        }
-    }
-
-    pub fn noise_reduction(id: String) -> Self {
-        Self {
-            id,
-            config: AudioFilterType::NoiseReduction,
-        }
-    }
-
-    pub fn custom(id: String, custom_type: String) -> Self {
-        Self {
-            id,
-            config: AudioFilterType::Custom(custom_type),
-        }
-    }
-}
-
 impl VadAnalyzerHandle {
     pub fn webrtc(id: String) -> Self {
         Self {
