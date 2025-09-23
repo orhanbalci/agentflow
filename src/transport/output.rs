@@ -14,7 +14,6 @@ use crate::frames::{Frame, FrameType, OutputAudioRawFrame, OutputImageRawFrame};
 use crate::processors::frame::{FrameDirection, FrameProcessor, FrameProcessorTrait};
 use crate::task_manager::TaskManager;
 use crate::transport::params::TransportParams;
-use tokio::task::JoinHandle;
 
 /// Clock trait for timing operations
 pub trait Clock: Send + Sync {
