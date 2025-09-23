@@ -42,12 +42,6 @@ pub trait BaseOutputTransportTrait: Send + Sync {
     /// Check if interruptions are allowed
     fn interruptions_allowed(&self) -> bool;
 
-    /// Push a frame in the specified direction
-    async fn push_frame(
-        &self,
-        frame: Box<dyn Frame + Send>,
-        direction: FrameDirection,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
 /// Lightweight base output transport implementation.
@@ -88,16 +82,6 @@ impl BaseOutputTransport {
             clock: Arc::new(SystemClock::new()),
             stopped: AtomicBool::new(false),
         }
-    }
-
-    /// Get current sample rate
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate.load(Ordering::Relaxed)
-    }
-
-    /// Get audio chunk size (in bytes)
-    pub fn audio_chunk_size(&self) -> u32 {
-        self.audio_chunk_size.load(Ordering::Relaxed)
     }
 
     /// Internal helper to create (placeholder) media senders for destinations.
@@ -164,6 +148,31 @@ impl BaseOutputTransport {
     /// Cancel a task (simplified)
     pub async fn cancel_task(&self, handle: tokio::task::JoinHandle<()>) {
         handle.abort();
+    }
+
+    /// Start the output transport and initialize components.
+    ///
+    /// Args:
+    ///     frame: The start frame containing initialization parameters.
+    pub async fn start(&self, frame: &crate::StartFrame) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Set sample rate from params or frame
+        let sample_rate = self.params.audio_out_sample_rate
+            .unwrap_or(frame.audio_out_sample_rate);
+        self.sample_rate.store(sample_rate, Ordering::Relaxed);
+
+        // We will write 10ms*CHUNKS of audio at a time (where CHUNKS is the
+        // `audio_out_10ms_chunks` parameter). If we receive long audio frames we
+        // will chunk them. This will help with interruption handling.
+        let audio_bytes_10ms = (sample_rate as f64 / 100.0) as u32 
+            * (self.params.audio_out_channels as u32) 
+            * 2; // 2 bytes per sample (16-bit)
+        let audio_chunk_size = audio_bytes_10ms * (self.params.audio_out_10ms_chunks as u32);
+        self.audio_chunk_size.store(audio_chunk_size, Ordering::Relaxed);
+
+        // Initialize media senders
+        self.ensure_media_senders().await;
+
+        Ok(())
     }
 }
 
@@ -250,14 +259,5 @@ impl BaseOutputTransportTrait for BaseOutputTransport {
     fn interruptions_allowed(&self) -> bool {
         // Default to true since allow_interruptions field doesn't exist
         true
-    }
-
-    async fn push_frame(
-        &self,
-        _frame: Box<dyn Frame + Send>,
-        _direction: FrameDirection,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Placeholder implementation - would delegate to frame processor
-        Ok(())
     }
 }
