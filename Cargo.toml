@@ -18,4 +18,5 @@ thiserror = "1.0"
 hound = "3.5"
 rubato = "0.15"
 bytemuck = "1.0"
+delegate = "0.13.4"
 
