@@ -1477,7 +1477,11 @@ impl FrameProcessorInterface for Arc<Mutex<FrameProcessor>> {
     }
 
     // Task management
-    async fn create_task<F, Fut>(&self, future: F, name: Option<String>) -> Result<TaskHandle, String>
+    async fn create_task<F, Fut>(
+        &self,
+        future: F,
+        name: Option<String>,
+    ) -> Result<TaskHandle, String>
     where
         F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
@@ -1486,7 +1490,11 @@ impl FrameProcessorInterface for Arc<Mutex<FrameProcessor>> {
         processor.create_task(future, name).await
     }
 
-    async fn cancel_task(&self, task: &TaskHandle, timeout: Option<Duration>) -> Result<(), String> {
+    async fn cancel_task(
+        &self,
+        task: &TaskHandle,
+        timeout: Option<Duration>,
+    ) -> Result<(), String> {
         let processor = self.lock().await;
         processor.cancel_task(task, timeout).await
     }
@@ -1518,8 +1526,15 @@ impl FrameProcessorInterface for Arc<Mutex<FrameProcessor>> {
         processor.push_frame(frame, direction).await
     }
 
-    async fn push_frame_with_callback(&mut self, frame: FrameType, direction: FrameDirection, callback: Option<FrameCallback>) -> Result<(), String> {
+    async fn push_frame_with_callback(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
         let mut processor = self.lock().await;
-        processor.push_frame_with_callback(frame, direction, callback).await
+        processor
+            .push_frame_with_callback(frame, direction, callback)
+            .await
     }
 }

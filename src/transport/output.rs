@@ -29,7 +29,7 @@ use tokio::sync::mpsc;
 // Type alias for frame queues per destination
 type AudioQueue = mpsc::UnboundedSender<Box<dyn Frame + Send>>;
 type VideoQueue = mpsc::UnboundedSender<OutputImageRawFrame>;
-type ClockQueue = mpsc::UnboundedSender<(u64, u64, Box<dyn Frame + Send>)>;
+type ClockQueue = mpsc::UnboundedSender<(u64, u64, FrameType)>;
 
 /// Video image cycling for output
 enum VideoImageCycle {
@@ -181,7 +181,7 @@ impl BaseOutputTransport {
             // Let the sink tasks process the queue until they reach this EndFrame.
             // Put EndFrame in clock queue with infinite priority to ensure it's processed last
             if let Some(clock_sender) = &state.clock_queue {
-                let _ = clock_sender.send((u64::MAX, frame.id(), Box::new(frame.clone())));
+                let _ = clock_sender.send((u64::MAX, frame.id(), FrameType::End(frame.clone())));
             }
 
             // Put EndFrame in audio queue
@@ -553,22 +553,60 @@ impl BaseOutputTransport {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if state.clock_task.is_none() {
             // Create the clock priority queue
-            let (clock_sender, _clock_receiver) =
-                mpsc::unbounded_channel::<(u64, u64, Box<dyn Frame + Send>)>();
+            let (clock_sender, mut clock_receiver) =
+                mpsc::unbounded_channel::<(u64, u64, FrameType)>();
             state.clock_queue = Some(clock_sender);
 
             // Create the clock task using FrameProcessor's create_task method
             let destination_clone = destination.clone();
+            let clock = self.get_clock();
+            let frame_processor = self.frame_processor.clone();
+
             let task_handle = self
                 .create_task(
                     move |_ctx| async move {
-                        // This would contain the actual clock task handler implementation
-                        // For now, it's a placeholder that would process timing events from clock_receiver
                         log::debug!(
                             "Clock task started for destination: {:?}",
                             destination_clone
                         );
-                        // In a real implementation, this would call self._clock_task_handler()
+                        // Main clock/timing task handler for timed frame delivery
+                        let mut running = true;
+                        while running {
+                            if let Some((timestamp, _frame_id, frame)) = clock_receiver.recv().await {
+                                // If we hit an EndFrame, we can finish right away
+                                running = !matches!(frame, FrameType::End(_));
+
+                                // If we have a frame we check its presentation timestamp. If it
+                                // has already passed we process it, otherwise we wait until it's
+                                // time to process it.
+                                if running {
+                                    match clock.get_time() {
+                                        Ok(current_time) => {
+                                            if timestamp > current_time {
+                                                let wait_time_ns = timestamp - current_time;
+                                                let wait_time_secs = wait_time_ns as f64 / 1_000_000_000.0;
+                                                tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait_time_secs)).await;
+                                            }
+
+                                            // Push frame downstream through the frame processor
+                                            if let Err(e) = frame_processor.push_frame(frame, FrameDirection::Downstream).await {
+                                                log::error!("Failed to push frame downstream in clock task: {}", e);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            log::error!("Failed to get current time in clock task: {}", e);
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Channel closed, exit the loop
+                                running = false;
+                            }
+                        }
+                        log::debug!(
+                            "Clock task finished for destination: {:?}",
+                            destination_clone
+                        );
                     },
                     Some("clock".to_string()),
                 )
@@ -957,9 +995,13 @@ impl FrameProcessorInterface for BaseOutputTransport {
             fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
         }
     }
-    
+
     // Async methods must be implemented manually as delegate macro doesn't support async traits
-    async fn create_task<F, Fut>(&self, future: F, name: Option<String>) -> Result<TaskHandle, String>
+    async fn create_task<F, Fut>(
+        &self,
+        future: F,
+        name: Option<String>,
+    ) -> Result<TaskHandle, String>
     where
         F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
@@ -967,7 +1009,11 @@ impl FrameProcessorInterface for BaseOutputTransport {
         self.frame_processor.create_task(future, name).await
     }
 
-    async fn cancel_task(&self, task: &TaskHandle, timeout: Option<std::time::Duration>) -> Result<(), String> {
+    async fn cancel_task(
+        &self,
+        task: &TaskHandle,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<(), String> {
         self.frame_processor.cancel_task(task, timeout).await
     }
 
@@ -991,7 +1037,14 @@ impl FrameProcessorInterface for BaseOutputTransport {
         self.frame_processor.push_frame(frame, direction).await
     }
 
-    async fn push_frame_with_callback(&mut self, frame: FrameType, direction: FrameDirection, callback: Option<FrameCallback>) -> Result<(), String> {
-        self.frame_processor.push_frame_with_callback(frame, direction, callback).await
+    async fn push_frame_with_callback(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
+        self.frame_processor
+            .push_frame_with_callback(frame, direction, callback)
+            .await
     }
 }
