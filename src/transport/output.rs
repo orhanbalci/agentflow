@@ -930,62 +930,48 @@ impl FrameProcessorTrait for BaseOutputTransport {
 }
 
 impl BaseOutputTransport {
-    // Delegate basic FrameProcessor functionality to the inner frame_processor field
+    // Delegate FrameProcessor functionality to the inner frame_processor field
     delegate! {
         to self.frame_processor {
+            // Basic processor information
             pub fn id(&self) -> u64;
             pub fn is_started(&self) -> bool;
             pub fn is_cancelling(&self) -> bool;
+
+            // Configuration methods
             pub fn set_allow_interruptions(&mut self, allow: bool);
             pub fn set_enable_metrics(&mut self, enable: bool);
             pub fn set_enable_usage_metrics(&mut self, enable: bool);
             pub fn set_report_only_initial_ttfb(&mut self, report: bool);
+            pub fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
+            pub fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
+
+            // Processor management
             pub fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>);
             pub fn clear_processors(&mut self);
             pub fn is_compound_processor(&self) -> bool;
             pub fn processor_count(&self) -> usize;
             pub fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>>;
             pub fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>>;
-        }
-    }
+            pub fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
 
-    delegate! {
-        to self.frame_processor {
-            pub fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
-            pub fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
+            // Interruption strategy
             pub fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
+
+            // Task management
             pub async fn create_task<F, Fut>(&self, future: F, name: Option<String>) -> Result<TaskHandle, String>
             where
                 F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
                 Fut: std::future::Future<Output = ()> + Send + 'static;
             pub async fn cancel_task(&self, task: &TaskHandle, timeout: Option<std::time::Duration>) -> Result<(), String>;
-        }
-    }
 
-    delegate! {
-        to self.frame_processor {
+            // Metrics and lifecycle
             pub async fn get_metrics(&self) -> FrameProcessorMetrics;
+            pub async fn setup(&mut self, setup: FrameProcessorSetup) -> Result<(), String>;
             pub async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String>;
             pub async fn cleanup_all_processors(&self) -> Result<(), String>;
-        }
-    }
 
-    delegate! {
-        to self.frame_processor {
-            pub fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
-        }
-    }
-
-    delegate! {
-        to self.frame_processor {
-            pub async fn setup(&mut self, setup: FrameProcessorSetup) -> Result<(), String>;
-        }
-    }
-
-    // Delegate the actual push_frame functionality to the inner frame_processor
-    // Note: This overrides the placeholder push_frame method above
-    delegate! {
-        to self.frame_processor {
+            // Frame processing
             pub async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String>;
             pub async fn push_frame_with_callback(&mut self, frame: FrameType, direction: FrameDirection, callback: Option<FrameCallback>) -> Result<(), String>;
         }
