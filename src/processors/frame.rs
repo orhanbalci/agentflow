@@ -114,6 +114,67 @@ pub trait FrameProcessorTrait: Send + Sync {
     }
 }
 
+// Frame processor interface trait
+// This trait abstracts all the functionality that can be delegated from other components
+#[async_trait]
+pub trait FrameProcessorInterface: Send + Sync {
+    // Basic processor information
+    fn id(&self) -> u64;
+    fn name(&self) -> &str;
+    fn is_started(&self) -> bool;
+    fn is_cancelling(&self) -> bool;
+
+    // Configuration methods
+    fn set_allow_interruptions(&mut self, allow: bool);
+    fn set_enable_metrics(&mut self, enable: bool);
+    fn set_enable_usage_metrics(&mut self, enable: bool);
+    fn set_report_only_initial_ttfb(&mut self, report: bool);
+    fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
+    fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
+
+    // Processor management
+    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>);
+    fn clear_processors(&mut self);
+    fn is_compound_processor(&self) -> bool;
+    fn processor_count(&self) -> usize;
+    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>>;
+    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>>;
+    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
+
+    // Interruption strategy
+    fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
+
+    // Task management
+    async fn create_task<F, Fut>(
+        &self,
+        future: F,
+        name: Option<String>,
+    ) -> Result<TaskHandle, String>
+    where
+        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static;
+    async fn cancel_task(
+        &self,
+        task: &TaskHandle,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<(), String>;
+
+    // Metrics and lifecycle
+    async fn get_metrics(&self) -> FrameProcessorMetrics;
+    async fn setup(&mut self, setup: FrameProcessorSetup) -> Result<(), String>;
+    async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String>;
+    async fn cleanup_all_processors(&self) -> Result<(), String>;
+
+    // Frame processing
+    async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String>;
+    async fn push_frame_with_callback(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String>;
+}
+
 // Interruption strategy trait
 #[async_trait]
 pub trait BaseInterruptionStrategy: Send + Sync {
@@ -1088,5 +1149,377 @@ impl FrameProcessor {
         // TODO: Implement processing metrics stopping logic
         // This would typically reset processing time measurement state
         Ok(())
+    }
+}
+
+// Implement the FrameProcessorInterface trait for FrameProcessor
+#[async_trait]
+impl FrameProcessorInterface for FrameProcessor {
+    // Basic processor information
+    fn id(&self) -> u64 {
+        self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn is_started(&self) -> bool {
+        self.started.load(Ordering::Relaxed)
+    }
+
+    fn is_cancelling(&self) -> bool {
+        self.cancelling.load(Ordering::Relaxed)
+    }
+
+    // Configuration methods
+    fn set_allow_interruptions(&mut self, allow: bool) {
+        self.allow_interruptions = allow;
+    }
+
+    fn set_enable_metrics(&mut self, enable: bool) {
+        self.enable_metrics = enable;
+    }
+
+    fn set_enable_usage_metrics(&mut self, enable: bool) {
+        self.enable_usage_metrics = enable;
+    }
+
+    fn set_report_only_initial_ttfb(&mut self, report: bool) {
+        self.report_only_initial_ttfb = report;
+    }
+
+    fn set_clock(&mut self, clock: Arc<dyn BaseClock>) {
+        self.clock = Some(clock);
+    }
+
+    fn set_task_manager(&mut self, task_manager: Arc<TaskManager>) {
+        self.task_manager = task_manager;
+    }
+
+    // Processor management
+    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>) {
+        self.processors.push(processor);
+    }
+
+    fn clear_processors(&mut self) {
+        self.processors.clear();
+    }
+
+    fn is_compound_processor(&self) -> bool {
+        !self.processors.is_empty()
+    }
+
+    fn processor_count(&self) -> usize {
+        self.processors.len()
+    }
+
+    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>> {
+        self.processors.get(index)
+    }
+
+    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>> {
+        &self.processors
+    }
+
+    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>) {
+        self.next = Some(next);
+    }
+
+    // Interruption strategy
+    fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>) {
+        self.interruption_strategies.push(strategy);
+    }
+
+    // Task management
+    async fn create_task<F, Fut>(
+        &self,
+        future: F,
+        name: Option<String>,
+    ) -> Result<TaskHandle, String>
+    where
+        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let task_name = if let Some(name) = name {
+            format!("{}::{}", self, name)
+        } else {
+            format!("{}::task", self)
+        };
+
+        self.task_manager
+            .create_task(task_name, future, None)
+            .await
+            .map_err(|e| format!("Failed to create task: {:?}", e))
+    }
+
+    async fn cancel_task(
+        &self,
+        task: &TaskHandle,
+        timeout: Option<Duration>,
+    ) -> Result<(), String> {
+        self.task_manager
+            .cancel_task(task, timeout)
+            .await
+            .map_err(|e| format!("Failed to cancel task: {:?}", e))
+    }
+
+    // Metrics and lifecycle
+    async fn get_metrics(&self) -> FrameProcessorMetrics {
+        self.metrics.lock().await.clone()
+    }
+
+    async fn setup(&mut self, setup: FrameProcessorSetup) -> Result<(), String> {
+        self.observer = setup.observer;
+
+        if !self.enable_direct_mode {
+            self.create_input_task().await?;
+        }
+
+        Ok(())
+    }
+
+    async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String> {
+        for processor in &self.processors {
+            let mut proc_guard = processor.lock().await;
+            proc_guard.setup(setup.clone()).await?;
+        }
+        Ok(())
+    }
+
+    async fn cleanup_all_processors(&self) -> Result<(), String> {
+        for processor in &self.processors {
+            let mut proc_guard = processor.lock().await;
+            proc_guard.cleanup().await?;
+        }
+        Ok(())
+    }
+
+    // Frame processing
+    async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
+        if !self.check_started(&frame) {
+            return Ok(());
+        }
+
+        self.internal_push_frame(frame, direction).await
+    }
+
+    async fn push_frame_with_callback(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
+        if !self.check_started(&frame) {
+            return Ok(());
+        }
+
+        self.queue_frame(frame, direction, callback).await
+    }
+}
+
+// Implement the FrameProcessorInterface trait for Arc<Mutex<FrameProcessor>>
+// This allows direct usage of the interface without manually locking
+#[async_trait]
+impl FrameProcessorInterface for Arc<Mutex<FrameProcessor>> {
+    // Basic processor information
+    fn id(&self) -> u64 {
+        // For sync methods with tokio::Mutex, we need to block on the async operation
+        let arc_clone = self.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let processor = arc_clone.lock().await;
+                processor.id()
+            })
+        })
+    }
+
+    fn name(&self) -> &str {
+        // This can't work with async mutex as we can't return a reference
+        // This is a limitation of the current design
+        "FrameProcessor"
+    }
+
+    fn is_started(&self) -> bool {
+        let arc_clone = self.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let processor = arc_clone.lock().await;
+                processor.is_started()
+            })
+        })
+    }
+
+    fn is_cancelling(&self) -> bool {
+        let arc_clone = self.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let processor = arc_clone.lock().await;
+                processor.is_cancelling()
+            })
+        })
+    }
+
+    // Configuration methods
+    fn set_allow_interruptions(&mut self, allow: bool) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.set_allow_interruptions(allow);
+        });
+    }
+
+    fn set_enable_metrics(&mut self, enable: bool) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.set_enable_metrics(enable);
+        });
+    }
+
+    fn set_enable_usage_metrics(&mut self, enable: bool) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.set_enable_usage_metrics(enable);
+        });
+    }
+
+    fn set_report_only_initial_ttfb(&mut self, report: bool) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.set_report_only_initial_ttfb(report);
+        });
+    }
+
+    fn set_clock(&mut self, clock: Arc<dyn BaseClock>) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.set_clock(clock);
+        });
+    }
+
+    fn set_task_manager(&mut self, task_manager: Arc<TaskManager>) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.set_task_manager(task_manager);
+        });
+    }
+
+    // Processor management
+    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut fp = arc_clone.lock().await;
+            fp.add_processor(processor);
+        });
+    }
+
+    fn clear_processors(&mut self) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut fp = arc_clone.lock().await;
+            fp.clear_processors();
+        });
+    }
+
+    fn is_compound_processor(&self) -> bool {
+        let arc_clone = self.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let processor = arc_clone.lock().await;
+                processor.is_compound_processor()
+            })
+        })
+    }
+
+    fn processor_count(&self) -> usize {
+        let arc_clone = self.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let processor = arc_clone.lock().await;
+                processor.processor_count()
+            })
+        })
+    }
+
+    fn get_processor(&self, _index: usize) -> Option<&Arc<Mutex<FrameProcessor>>> {
+        // This can't work with async mutex as we can't return a reference
+        // The lifetime of the returned reference would be tied to the lock guard
+        // which would be dropped immediately
+        None
+    }
+
+    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>> {
+        // Same issue as get_processor - can't return references from async mutex
+        static EMPTY: Vec<Arc<Mutex<FrameProcessor>>> = Vec::new();
+        &EMPTY
+    }
+
+    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.link(next);
+        });
+    }
+
+    // Interruption strategy
+    fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>) {
+        let arc_clone = self.clone();
+        tokio::spawn(async move {
+            let mut processor = arc_clone.lock().await;
+            processor.add_interruption_strategy(strategy);
+        });
+    }
+
+    // Task management
+    async fn create_task<F, Fut>(&self, future: F, name: Option<String>) -> Result<TaskHandle, String>
+    where
+        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let processor = self.lock().await;
+        processor.create_task(future, name).await
+    }
+
+    async fn cancel_task(&self, task: &TaskHandle, timeout: Option<Duration>) -> Result<(), String> {
+        let processor = self.lock().await;
+        processor.cancel_task(task, timeout).await
+    }
+
+    // Metrics and lifecycle
+    async fn get_metrics(&self) -> FrameProcessorMetrics {
+        let processor = self.lock().await;
+        processor.get_metrics().await
+    }
+
+    async fn setup(&mut self, setup: FrameProcessorSetup) -> Result<(), String> {
+        let mut processor = self.lock().await;
+        processor.setup(setup).await
+    }
+
+    async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String> {
+        let processor = self.lock().await;
+        processor.setup_all_processors(setup).await
+    }
+
+    async fn cleanup_all_processors(&self) -> Result<(), String> {
+        let processor = self.lock().await;
+        processor.cleanup_all_processors().await
+    }
+
+    // Frame processing
+    async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
+        let processor = self.lock().await;
+        processor.push_frame(frame, direction).await
+    }
+
+    async fn push_frame_with_callback(&mut self, frame: FrameType, direction: FrameDirection, callback: Option<FrameCallback>) -> Result<(), String> {
+        let mut processor = self.lock().await;
+        processor.push_frame_with_callback(frame, direction, callback).await
     }
 }
