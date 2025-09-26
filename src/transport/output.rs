@@ -11,6 +11,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::audio::mixer::BaseAudioMixer;
+use crate::audio::resampler::{BaseAudioResampler, RubatoAudioResampler};
 use crate::frames::{
     CancelFrame, EndFrame, Frame, FrameType, OutputAudioRawFrame, OutputImageRawFrame,
     OutputTransportReadyFrame, SpriteFrame, StartFrame, TransportMessageFrame,
@@ -30,34 +31,6 @@ use tokio::task::JoinHandle;
 type AudioQueue = mpsc::UnboundedSender<Box<dyn Frame + Send>>;
 type VideoQueue = mpsc::UnboundedSender<OutputImageRawFrame>;
 type ClockQueue = mpsc::UnboundedSender<(u64, u64, Box<dyn Frame + Send>)>;
-
-/// Convert nanoseconds to seconds
-/// Placeholder for audio resampler trait
-#[async_trait::async_trait]
-trait AudioResampler: Send + Sync {
-    async fn resample(
-        &mut self,
-        audio_data: &[u8],
-        input_rate: u32,
-        output_rate: u32,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>>;
-}
-
-/// Placeholder implementation for audio resampler
-struct DefaultAudioResampler;
-
-#[async_trait::async_trait]
-impl AudioResampler for DefaultAudioResampler {
-    async fn resample(
-        &mut self,
-        audio_data: &[u8],
-        _input_rate: u32,
-        _output_rate: u32,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-        // Placeholder implementation - just return the input data
-        Ok(audio_data.to_vec())
-    }
-}
 
 /// Video image cycling for output
 enum VideoImageCycle {
@@ -82,7 +55,7 @@ impl VideoImageCycle {
 struct DestinationState {
     // Audio processing
     audio_buffer: Vec<u8>,
-    audio_resampler: Box<dyn AudioResampler>,
+    audio_resampler: Box<dyn BaseAudioResampler>,
     audio_mixer: Option<Box<dyn BaseAudioMixer>>,
 
     // Video processing
@@ -409,7 +382,7 @@ impl BaseOutputTransport {
                 None,
                 DestinationState {
                     audio_buffer: Vec::new(),
-                    audio_resampler: Box::new(DefaultAudioResampler),
+                    audio_resampler: Box::new(RubatoAudioResampler::new()),
                     audio_mixer: None,
                     video_images: None,
                     audio_task: None,
@@ -428,7 +401,7 @@ impl BaseOutputTransport {
                     Some(dest.clone()),
                     DestinationState {
                         audio_buffer: Vec::new(),
-                        audio_resampler: Box::new(DefaultAudioResampler),
+                        audio_resampler: Box::new(RubatoAudioResampler::new()),
                         audio_mixer: None,
                         video_images: None,
                         audio_task: None,
@@ -448,7 +421,7 @@ impl BaseOutputTransport {
                     Some(dest.clone()),
                     DestinationState {
                         audio_buffer: Vec::new(),
-                        audio_resampler: Box::new(DefaultAudioResampler),
+                        audio_resampler: Box::new(RubatoAudioResampler::new()),
                         audio_mixer: None,
                         video_images: None,
                         audio_task: None,
@@ -615,7 +588,7 @@ impl BaseOutputTransport {
             let resampled = state
                 .audio_resampler
                 .resample(
-                    &frame.audio_frame.audio,
+                    frame.audio_frame.audio.clone(),
                     frame.audio_frame.sample_rate,
                     self.sample_rate.load(Ordering::Relaxed),
                 )
