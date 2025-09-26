@@ -21,11 +21,10 @@ use crate::processors::frame::{
     BaseInterruptionStrategy, FrameCallback, FrameDirection, FrameProcessor, FrameProcessorMetrics,
     FrameProcessorSetup, FrameProcessorTrait,
 };
-use crate::task_manager::TaskManager;
+use crate::task_manager::{TaskHandle, TaskManager};
 use crate::transport::params::TransportParams;
 use crate::{BaseClock, SystemClock};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 // Type alias for frame queues per destination
 type AudioQueue = mpsc::UnboundedSender<Box<dyn Frame + Send>>;
@@ -62,11 +61,12 @@ struct DestinationState {
     video_images: Option<VideoImageCycle>,
 
     // Tasks and queues
-    audio_task: Option<JoinHandle<()>>,
-    video_task: Option<JoinHandle<()>>,
-    clock_task: Option<JoinHandle<()>>,
+    audio_task: Option<TaskHandle>,
+    video_task: Option<TaskHandle>,
+    clock_task: Option<TaskHandle>,
     audio_queue: Option<AudioQueue>,
     video_queue: Option<VideoQueue>,
+    clock_queue: Option<ClockQueue>,
 }
 
 /// Enum for transport message frame types
@@ -138,13 +138,13 @@ impl BaseOutputTransport {
     ///     frame: The start frame containing initialization parameters.
     pub async fn start(
         &self,
-        _frame: &StartFrame,
+        frame: &StartFrame,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Set sample rate from params or frame
         let sample_rate = self
             .params
             .audio_out_sample_rate
-            .unwrap_or(_frame.audio_out_sample_rate);
+            .unwrap_or(frame.audio_out_sample_rate);
         self.sample_rate.store(sample_rate, Ordering::Relaxed);
 
         // We will write 10ms*CHUNKS of audio at a time (where CHUNKS is the
@@ -168,7 +168,7 @@ impl BaseOutputTransport {
     ///     frame: The end frame signaling transport shutdown.
     pub async fn stop(
         &self,
-        _frame: &EndFrame,
+        frame: &EndFrame,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Mark as stopped
         self.stopped.store(true, Ordering::Relaxed);
@@ -178,25 +178,44 @@ impl BaseOutputTransport {
         for (destination, state) in states.iter_mut() {
             log::debug!("Stopping destination: {:?}", destination);
 
-            // Stop audio mixer
+            // Let the sink tasks process the queue until they reach this EndFrame.
+            // Put EndFrame in clock queue with infinite priority to ensure it's processed last
+            if let Some(clock_sender) = &state.clock_queue {
+                let _ = clock_sender.send((u64::MAX, frame.id(), Box::new(frame.clone())));
+            }
+
+            // Put EndFrame in audio queue
+            if let Some(audio_sender) = &state.audio_queue {
+                let _ = audio_sender.send(Box::new(frame.clone()));
+            }
+
+            // At this point we have enqueued an EndFrame and we need to wait for
+            // that EndFrame to be processed by the audio and clock tasks. We
+            // also need to wait for these tasks before cancelling the video task
+            // because it might be still rendering.
+            if let Some(task) = state.audio_task.take() {
+                let _ = self
+                    .cancel_task(&task, Some(std::time::Duration::from_secs(5)))
+                    .await;
+            }
+            if let Some(task) = state.clock_task.take() {
+                let _ = self
+                    .cancel_task(&task, Some(std::time::Duration::from_secs(5)))
+                    .await;
+            }
+
+            // Stop audio mixer after tasks are done
             if let Some(mixer) = &mut state.audio_mixer {
                 if let Err(e) = mixer.stop().await {
                     log::error!("Failed to stop mixer for {:?}: {}", destination, e);
                 }
             }
 
-            // Cancel tasks
-            if let Some(task) = state.audio_task.take() {
-                task.abort();
-                let _ = task.await;
-            }
+            // We can now cancel the video task.
             if let Some(task) = state.video_task.take() {
-                task.abort();
-                let _ = task.await;
-            }
-            if let Some(task) = state.clock_task.take() {
-                task.abort();
-                let _ = task.await;
+                let _ = self
+                    .cancel_task(&task, Some(std::time::Duration::from_secs(5)))
+                    .await;
             }
         }
 
@@ -219,15 +238,21 @@ impl BaseOutputTransport {
         for (destination, state) in states.iter_mut() {
             log::debug!("Cancelling destination: {:?}", destination);
 
-            // Cancel tasks immediately
+            // Cancel tasks immediately using proper task management
             if let Some(task) = state.audio_task.take() {
-                task.abort();
+                let _ = self
+                    .cancel_task(&task, Some(std::time::Duration::from_secs(1)))
+                    .await;
             }
             if let Some(task) = state.video_task.take() {
-                task.abort();
+                let _ = self
+                    .cancel_task(&task, Some(std::time::Duration::from_secs(1)))
+                    .await;
             }
             if let Some(task) = state.clock_task.take() {
-                task.abort();
+                let _ = self
+                    .cancel_task(&task, Some(std::time::Duration::from_secs(1)))
+                    .await;
             }
         }
 
@@ -390,6 +415,7 @@ impl BaseOutputTransport {
                     clock_task: None,
                     audio_queue: None,
                     video_queue: None,
+                    clock_queue: None,
                 },
             );
         }
@@ -409,6 +435,7 @@ impl BaseOutputTransport {
                         clock_task: None,
                         audio_queue: None,
                         video_queue: None,
+                        clock_queue: None,
                     },
                 );
             }
@@ -429,6 +456,7 @@ impl BaseOutputTransport {
                         clock_task: None,
                         audio_queue: None,
                         video_queue: None,
+                        clock_queue: None,
                     },
                 );
             }
@@ -446,19 +474,6 @@ impl BaseOutputTransport {
         true
     }
 
-    /// Create a task (simplified)
-    pub fn create_task<F>(&self, future: F) -> tokio::task::JoinHandle<()>
-    where
-        F: std::future::Future<Output = ()> + Send + 'static,
-    {
-        tokio::spawn(future)
-    }
-
-    /// Cancel a task (simplified)
-    pub async fn cancel_task(&self, handle: tokio::task::JoinHandle<()>) {
-        handle.abort();
-    }
-
     /// Start processing tasks for a specific destination.
     async fn start_destination_tasks(
         &self,
@@ -466,18 +481,141 @@ impl BaseOutputTransport {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut states = self.destination_states.lock().await;
         if let Some(state) = states.get_mut(destination) {
-            // Start audio mixer if configured
-            if self.params.audio_out_mixer.is_some() && state.audio_mixer.is_some() {
-                if let Some(mixer) = &mut state.audio_mixer {
-                    mixer
-                        .start(self.sample_rate.load(Ordering::Relaxed))
-                        .await?;
+            // Create all tasks first
+            self.create_video_task(destination, state).await?;
+            self.create_clock_task(destination, state).await?;
+            self.create_audio_task(destination, state).await?;
+
+            // Check if we have an audio mixer for our destination
+            if let Some(_mixer_config) = &self.params.audio_out_mixer {
+                // In a real implementation, this would check if mixer_config is a mapping
+                // and get the mixer for this specific destination, or use default mixer
+                // if destination is None. For now, we'll use a simplified approach.
+                if destination.is_none() {
+                    // Only use the default mixer if we are the default destination
+                    // state.audio_mixer would be set here based on mixer_config
                 }
             }
 
-            // Create and start tasks (placeholder implementation)
-            // In a full implementation, these would create the actual processing tasks
-            // similar to what was in MediaSender::start()
+            // Start audio mixer if configured
+            if let Some(mixer) = &mut state.audio_mixer {
+                mixer
+                    .start(self.sample_rate.load(Ordering::Relaxed))
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Create the audio processing task for a destination.
+    async fn create_audio_task(
+        &self,
+        destination: &Option<String>,
+        state: &mut DestinationState,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if state.audio_task.is_none() {
+            // Create the audio queue
+            let (audio_sender, _audio_receiver) =
+                mpsc::unbounded_channel::<Box<dyn Frame + Send>>();
+            state.audio_queue = Some(audio_sender);
+
+            // Create the audio task using FrameProcessor's create_task method
+            let destination_clone = destination.clone();
+            let task_handle = self
+                .create_task(
+                    move |_ctx| async move {
+                        // This would contain the actual audio task handler implementation
+                        // For now, it's a placeholder that would process frames from audio_receiver
+                        log::debug!(
+                            "Audio task started for destination: {:?}",
+                            destination_clone
+                        );
+                        // In a real implementation, this would call self._audio_task_handler()
+                    },
+                    Some("audio".to_string()),
+                )
+                .await
+                .map_err(|e| {
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
+                        as Box<dyn std::error::Error + Send + Sync>
+                })?;
+
+            state.audio_task = Some(task_handle);
+        }
+        Ok(())
+    }
+
+    /// Create the clock/timing processing task for a destination.
+    async fn create_clock_task(
+        &self,
+        destination: &Option<String>,
+        state: &mut DestinationState,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if state.clock_task.is_none() {
+            // Create the clock priority queue
+            let (clock_sender, _clock_receiver) =
+                mpsc::unbounded_channel::<(u64, u64, Box<dyn Frame + Send>)>();
+            state.clock_queue = Some(clock_sender);
+
+            // Create the clock task using FrameProcessor's create_task method
+            let destination_clone = destination.clone();
+            let task_handle = self
+                .create_task(
+                    move |_ctx| async move {
+                        // This would contain the actual clock task handler implementation
+                        // For now, it's a placeholder that would process timing events from clock_receiver
+                        log::debug!(
+                            "Clock task started for destination: {:?}",
+                            destination_clone
+                        );
+                        // In a real implementation, this would call self._clock_task_handler()
+                    },
+                    Some("clock".to_string()),
+                )
+                .await
+                .map_err(|e| {
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
+                        as Box<dyn std::error::Error + Send + Sync>
+                })?;
+
+            state.clock_task = Some(task_handle);
+        }
+        Ok(())
+    }
+
+    /// Create the video processing task for a destination.
+    async fn create_video_task(
+        &self,
+        destination: &Option<String>,
+        state: &mut DestinationState,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if state.video_task.is_none() {
+            // Create the video queue
+            let (video_sender, _video_receiver) = mpsc::unbounded_channel::<OutputImageRawFrame>();
+            state.video_queue = Some(video_sender);
+
+            // Create the video task using FrameProcessor's create_task method
+            let destination_clone = destination.clone();
+            let task_handle = self
+                .create_task(
+                    move |_ctx| async move {
+                        // This would contain the actual video task handler implementation
+                        // For now, it's a placeholder that would process video frames from video_receiver
+                        log::debug!(
+                            "Video task started for destination: {:?}",
+                            destination_clone
+                        );
+                        // In a real implementation, this would call self._video_task_handler()
+                    },
+                    Some("video".to_string()),
+                )
+                .await
+                .map_err(|e| {
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
+                        as Box<dyn std::error::Error + Send + Sync>
+                })?;
+
+            state.video_task = Some(task_handle);
         }
         Ok(())
     }
@@ -791,8 +929,6 @@ impl FrameProcessorTrait for BaseOutputTransport {
     }
 }
 
-impl BaseOutputTransport {}
-
 impl BaseOutputTransport {
     // Delegate basic FrameProcessor functionality to the inner frame_processor field
     delegate! {
@@ -818,6 +954,11 @@ impl BaseOutputTransport {
             pub fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
             pub fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
             pub fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
+            pub async fn create_task<F, Fut>(&self, future: F, name: Option<String>) -> Result<TaskHandle, String>
+            where
+                F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
+                Fut: std::future::Future<Output = ()> + Send + 'static;
+            pub async fn cancel_task(&self, task: &TaskHandle, timeout: Option<std::time::Duration>) -> Result<(), String>;
         }
     }
 
