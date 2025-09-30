@@ -59,6 +59,10 @@ struct DestinationState {
 
     // Video processing
     video_images: Option<VideoImageCycle>,
+    video_start_time: Option<std::time::Instant>,
+    video_frame_index: u64,
+    video_frame_duration: f64,
+    video_frame_reset: f64,
 
     // Tasks and queues
     audio_task: Option<TaskHandle>,
@@ -403,6 +407,7 @@ impl BaseOutputTransport {
 
         // Create default destination state (None destination)
         if !states.contains_key(&None) {
+            let video_frame_duration = 1.0 / self.params.video_out_framerate as f64;
             states.insert(
                 None,
                 DestinationState {
@@ -410,6 +415,10 @@ impl BaseOutputTransport {
                     audio_resampler: Box::new(RubatoAudioResampler::new()),
                     audio_mixer: None,
                     video_images: None,
+                    video_start_time: None,
+                    video_frame_index: 0,
+                    video_frame_duration,
+                    video_frame_reset: video_frame_duration * 5.0,
                     audio_task: None,
                     video_task: None,
                     clock_task: None,
@@ -423,6 +432,7 @@ impl BaseOutputTransport {
         // Create states for audio destinations
         for dest in &self.params.audio_out_destinations {
             if !states.contains_key(&Some(dest.clone())) {
+                let video_frame_duration = 1.0 / self.params.video_out_framerate as f64;
                 states.insert(
                     Some(dest.clone()),
                     DestinationState {
@@ -430,6 +440,10 @@ impl BaseOutputTransport {
                         audio_resampler: Box::new(RubatoAudioResampler::new()),
                         audio_mixer: None,
                         video_images: None,
+                        video_start_time: None,
+                        video_frame_index: 0,
+                        video_frame_duration,
+                        video_frame_reset: video_frame_duration * 5.0,
                         audio_task: None,
                         video_task: None,
                         clock_task: None,
@@ -444,6 +458,7 @@ impl BaseOutputTransport {
         // Create states for video destinations
         for dest in &self.params.video_out_destinations {
             if !states.contains_key(&Some(dest.clone())) {
+                let video_frame_duration = 1.0 / self.params.video_out_framerate as f64;
                 states.insert(
                     Some(dest.clone()),
                     DestinationState {
@@ -451,6 +466,10 @@ impl BaseOutputTransport {
                         audio_resampler: Box::new(RubatoAudioResampler::new()),
                         audio_mixer: None,
                         video_images: None,
+                        video_start_time: None,
+                        video_frame_index: 0,
+                        video_frame_duration,
+                        video_frame_reset: video_frame_duration * 5.0,
                         audio_task: None,
                         video_task: None,
                         clock_task: None,
@@ -629,21 +648,129 @@ impl BaseOutputTransport {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if state.video_task.is_none() {
             // Create the video queue
-            let (video_sender, _video_receiver) = mpsc::unbounded_channel::<OutputImageRawFrame>();
+            let (video_sender, mut video_receiver) =
+                mpsc::unbounded_channel::<OutputImageRawFrame>();
             state.video_queue = Some(video_sender);
+
+            // Get timing parameters from state
+            let video_frame_duration = state.video_frame_duration;
+            let video_frame_reset = state.video_frame_reset;
 
             // Create the video task using FrameProcessor's create_task method
             let destination_clone = destination.clone();
+            let is_live = self.params.video_out_is_live;
+            let desired_size = (self.params.video_out_width, self.params.video_out_height);
+
+            // For now, we'll handle timing within the task without accessing shared state
+            // In a full implementation, we'd need a different architecture to share timing state
+
             let task_handle = self
                 .create_task(
                     move |_ctx| async move {
-                        // This would contain the actual video task handler implementation
-                        // For now, it's a placeholder that would process video frames from video_receiver
                         log::debug!(
                             "Video task started for destination: {:?}",
                             destination_clone
                         );
-                        // In a real implementation, this would call self._video_task_handler()
+
+                        // Initialize video timing state
+                        let mut video_start_time: Option<std::time::Instant> = None;
+                        let mut video_frame_index: u64 = 0;
+                        let frame_duration =
+                            std::time::Duration::from_secs_f64(video_frame_duration);
+                        let frame_reset_duration =
+                            std::time::Duration::from_secs_f64(video_frame_reset);
+
+                        let mut running = true;
+
+                        while running {
+                            if is_live {
+                                // Live video mode - process frames from the queue
+                                if let Some(frame) = video_receiver.recv().await {
+                                    // Initialize start time on first frame
+                                    if video_start_time.is_none() {
+                                        video_start_time = Some(std::time::Instant::now());
+                                    }
+
+                                    // Draw the received frame with resizing if needed
+                                    if let Err(e) = Self::draw_image_with_resize(
+                                        frame,
+                                        desired_size,
+                                        &destination_clone,
+                                    )
+                                    .await
+                                    {
+                                        log::error!("Failed to draw image frame: {}", e);
+                                    }
+
+                                    // Update frame index
+                                    video_frame_index += 1;
+
+                                    // Control frame rate based on frame duration
+                                    if let Some(start_time) = video_start_time {
+                                        let expected_time = start_time
+                                            + frame_duration * (video_frame_index as u32);
+                                        let current_time = std::time::Instant::now();
+
+                                        if current_time < expected_time {
+                                            tokio::time::sleep(expected_time - current_time).await;
+                                        }
+
+                                        // Reset timing if we're too far behind (frame reset logic)
+                                        if current_time > start_time + frame_reset_duration {
+                                            video_start_time = Some(current_time);
+                                            video_frame_index = 0;
+                                        }
+                                    }
+                                } else {
+                                    // Channel closed, exit
+                                    running = false;
+                                }
+                            } else {
+                                // Static video mode - use local timing and create placeholder frames
+                                // Initialize start time on first iteration
+                                if video_start_time.is_none() {
+                                    video_start_time = Some(std::time::Instant::now());
+                                }
+
+                                // Create a simple placeholder frame
+                                let placeholder_frame = OutputImageRawFrame::new(
+                                    vec![0u8; 1024 * 768 * 3], // Simple RGB placeholder
+                                    (1024, 768),
+                                    Some("RGB".to_string()),
+                                );
+
+                                // Draw the frame with resizing if needed
+                                if let Err(e) = Self::draw_image_with_resize(
+                                    placeholder_frame,
+                                    desired_size,
+                                    &destination_clone,
+                                )
+                                .await
+                                {
+                                    log::error!("Failed to draw placeholder image frame: {}", e);
+                                }
+
+                                // Update frame index and timing
+                                video_frame_index += 1;
+
+                                // Check for frame reset logic
+                                if let Some(start_time) = video_start_time {
+                                    let current_time = std::time::Instant::now();
+                                    if current_time > start_time + frame_reset_duration {
+                                        video_start_time = Some(current_time);
+                                        video_frame_index = 0;
+                                    }
+                                }
+
+                                // Wait for the next frame interval
+                                tokio::time::sleep(frame_duration).await;
+                            }
+                        }
+
+                        log::debug!(
+                            "Video task finished for destination: {:?}",
+                            destination_clone
+                        );
                     },
                     Some("video".to_string()),
                 )
@@ -656,6 +783,207 @@ impl BaseOutputTransport {
             state.video_task = Some(task_handle);
         }
         Ok(())
+    }
+
+    /// Static helper for drawing image with resizing (for use in video tasks)
+    ///
+    /// This static method can be called from async tasks that don't have access to self
+    pub async fn draw_image_with_resize(
+        frame: OutputImageRawFrame,
+        desired_size: (u32, u32),
+        destination: &Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let current_size = frame.image_frame.size;
+
+        let processed_frame = if current_size != desired_size {
+            log::debug!(
+                "Frame size {}x{} does not match desired size {}x{}, resizing needed for destination: {:?}",
+                current_size.0, current_size.1, desired_size.0, desired_size.1, destination
+            );
+
+            // Use async resize with thread pool for CPU-intensive work
+            let resized_data = Self::resize_frame_data_async(
+                frame.image_frame.image.clone(),
+                current_size,
+                desired_size,
+                frame.image_frame.format.clone(),
+            )
+            .await?;
+
+            OutputImageRawFrame::new(resized_data, desired_size, frame.image_frame.format.clone())
+        } else {
+            frame
+        };
+
+        // Log the processed frame (in a real implementation, this would write to output)
+        log::debug!(
+            "Processed image frame for destination: {:?}, final size: {}x{}, format: {:?}",
+            destination,
+            processed_frame.image_frame.size.0,
+            processed_frame.image_frame.size.1,
+            processed_frame.image_frame.format
+        );
+
+        Ok(())
+    }
+
+    /// Draw/render an image frame with resizing if needed.
+    ///
+    /// Args:
+    ///     frame: The image frame to draw.
+    pub async fn _draw_image(
+        &self,
+        frame: OutputImageRawFrame,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Get desired output size from params
+        let desired_size = (self.params.video_out_width, self.params.video_out_height);
+        let current_size = frame.image_frame.size;
+
+        let processed_frame = if current_size != desired_size {
+            // TODO: we should refactor in the future to support dynamic resolutions
+            // which is kind of what happens in P2P connections.
+            // We need to add support for that inside the DailyTransport
+
+            log::debug!(
+                "Frame size {}x{} does not match desired size {}x{}, resizing needed",
+                current_size.0,
+                current_size.1,
+                desired_size.0,
+                desired_size.1
+            );
+
+            // Use async resize with thread pool for CPU-intensive work
+            let resized_data = Self::resize_frame_data_async(
+                frame.image_frame.image.clone(),
+                current_size,
+                desired_size,
+                frame.image_frame.format.clone(),
+            )
+            .await?;
+
+            OutputImageRawFrame::new(resized_data, desired_size, frame.image_frame.format.clone())
+        } else {
+            frame
+        };
+
+        // Write the processed frame to the video output
+        self.write_video_frame(&processed_frame).await?;
+
+        Ok(())
+    }
+
+    /// Resize frame data using the image crate (real implementation using thread pool)
+    ///
+    /// This function performs actual image resizing using the `image` crate
+    /// with high-quality algorithms, running on a background thread pool
+    /// to avoid blocking the async runtime.
+    pub async fn resize_frame_data_async(
+        data: Vec<u8>,
+        current_size: (u32, u32),
+        desired_size: (u32, u32),
+        format: Option<String>,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+        log::debug!(
+            "Async resizing frame data from {}x{} to {}x{}, original size: {} bytes, format: {:?}",
+            current_size.0,
+            current_size.1,
+            desired_size.0,
+            desired_size.1,
+            data.len(),
+            format
+        );
+
+        // Use tokio::task::spawn_blocking to run CPU-intensive work on a thread pool
+        let resized_data = tokio::task::spawn_blocking(move || {
+            Self::resize_frame_data_blocking(data, current_size, desired_size, format)
+        })
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)??;
+
+        log::debug!(
+            "Async resize completed: output size {} bytes",
+            resized_data.len()
+        );
+
+        Ok(resized_data)
+    }
+
+    /// Blocking image resize operation using the image crate (runs on thread pool)
+    ///
+    /// This performs the actual image processing work using the `image` crate.
+    /// Equivalent to Python: image = Image.frombytes(format, size, data); resized = image.resize(desired_size)
+    fn resize_frame_data_blocking(
+        data: Vec<u8>,
+        current_size: (u32, u32),
+        desired_size: (u32, u32),
+        format: Option<String>,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+        let (width, height) = current_size;
+        let input_size = data.len();
+
+        // Step 1: Python equivalent: image = Image.frombytes(frame.format, frame.size, frame.image)
+        let dynamic_img = match format.as_deref().unwrap_or("RGB") {
+            "RGB" => {
+                let img =
+                    image::RgbImage::from_raw(width, height, data).ok_or("Invalid RGB data")?;
+                image::DynamicImage::ImageRgb8(img)
+            }
+            "RGBA" => {
+                let img =
+                    image::RgbaImage::from_raw(width, height, data).ok_or("Invalid RGBA data")?;
+                image::DynamicImage::ImageRgba8(img)
+            }
+            "BGR" => {
+                let mut rgb_data = data;
+                rgb_data
+                    .chunks_exact_mut(3)
+                    .for_each(|chunk| chunk.swap(0, 2));
+                let img =
+                    image::RgbImage::from_raw(width, height, rgb_data).ok_or("Invalid BGR data")?;
+                image::DynamicImage::ImageRgb8(img)
+            }
+            "BGRA" => {
+                let mut rgba_data = data;
+                rgba_data
+                    .chunks_exact_mut(4)
+                    .for_each(|chunk| chunk.swap(0, 2));
+                let img = image::RgbaImage::from_raw(width, height, rgba_data)
+                    .ok_or("Invalid BGRA data")?;
+                image::DynamicImage::ImageRgba8(img)
+            }
+            _ => return Err(format!("Unsupported format: {:?}", format).into()),
+        };
+
+        // Step 2: Python equivalent: resized_image = image.resize(desired_size)
+        let resized = dynamic_img.resize(
+            desired_size.0,
+            desired_size.1,
+            image::imageops::FilterType::Lanczos3,
+        );
+
+        // Step 3: Convert back to original format (Python handles this automatically)
+        let output_data = match format.as_deref().unwrap_or("RGB") {
+            "RGB" => resized.to_rgb8().into_raw(),
+            "RGBA" => resized.to_rgba8().into_raw(),
+            "BGR" => {
+                let mut data = resized.to_rgb8().into_raw();
+                data.chunks_exact_mut(3).for_each(|chunk| chunk.swap(0, 2));
+                data
+            }
+            "BGRA" => {
+                let mut data = resized.to_rgba8().into_raw();
+                data.chunks_exact_mut(4).for_each(|chunk| chunk.swap(0, 2));
+                data
+            }
+            _ => return Err("Unsupported output format".into()),
+        };
+
+        log::debug!(
+            "Image resize: {} -> {} bytes",
+            input_size,
+            output_data.len()
+        );
+        Ok(output_data)
     }
 
     /// Handle frames by delegating to appropriate destination processing.
