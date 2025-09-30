@@ -2046,6 +2046,8 @@ impl Frame for LLMFullResponseEndFrame {
 pub enum FrameType {
     // Data frames
     OutputAudioRaw(OutputAudioRawFrame),
+    TTSAudioRaw(TTSAudioRawFrame),
+    SpeechOutputAudioRaw(SpeechOutputAudioRawFrame),
     OutputImageRaw(OutputImageRawFrame),
     Sprite(SpriteFrame),
     InputAudioRaw(InputAudioRawFrame),
@@ -2083,6 +2085,8 @@ impl Frame for FrameType {
     fn id(&self) -> u64 {
         match self {
             FrameType::OutputAudioRaw(f) => f.id(),
+            FrameType::TTSAudioRaw(f) => f.id(),
+            FrameType::SpeechOutputAudioRaw(f) => f.id(),
             FrameType::OutputImageRaw(f) => f.id(),
             FrameType::Sprite(f) => f.id(),
             FrameType::InputAudioRaw(f) => f.id(),
@@ -2116,6 +2120,8 @@ impl Frame for FrameType {
     fn name(&self) -> &str {
         match self {
             FrameType::OutputAudioRaw(f) => f.name(),
+            FrameType::TTSAudioRaw(f) => f.name(),
+            FrameType::SpeechOutputAudioRaw(f) => f.name(),
             FrameType::OutputImageRaw(f) => f.name(),
             FrameType::Sprite(f) => f.name(),
             FrameType::InputAudioRaw(f) => f.name(),
@@ -2149,6 +2155,8 @@ impl Frame for FrameType {
     fn pts(&self) -> Option<u64> {
         match self {
             FrameType::OutputAudioRaw(f) => f.pts(),
+            FrameType::TTSAudioRaw(f) => f.pts(),
+            FrameType::SpeechOutputAudioRaw(f) => f.pts(),
             FrameType::OutputImageRaw(f) => f.pts(),
             FrameType::Sprite(f) => f.pts(),
             FrameType::InputAudioRaw(f) => f.pts(),
@@ -2182,6 +2190,8 @@ impl Frame for FrameType {
     fn set_pts(&mut self, pts: Option<u64>) {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_pts(pts),
+            FrameType::TTSAudioRaw(f) => f.set_pts(pts),
+            FrameType::SpeechOutputAudioRaw(f) => f.set_pts(pts),
             FrameType::OutputImageRaw(f) => f.set_pts(pts),
             FrameType::Sprite(f) => f.set_pts(pts),
             FrameType::InputAudioRaw(f) => f.set_pts(pts),
@@ -2215,6 +2225,8 @@ impl Frame for FrameType {
     fn metadata(&self) -> &HashMap<String, String> {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata(),
+            FrameType::TTSAudioRaw(f) => f.metadata(),
+            FrameType::SpeechOutputAudioRaw(f) => f.metadata(),
             FrameType::OutputImageRaw(f) => f.metadata(),
             FrameType::Sprite(f) => f.metadata(),
             FrameType::InputAudioRaw(f) => f.metadata(),
@@ -2248,6 +2260,8 @@ impl Frame for FrameType {
     fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
         match self {
             FrameType::OutputAudioRaw(f) => f.metadata_mut(),
+            FrameType::TTSAudioRaw(f) => f.metadata_mut(),
+            FrameType::SpeechOutputAudioRaw(f) => f.metadata_mut(),
             FrameType::OutputImageRaw(f) => f.metadata_mut(),
             FrameType::Sprite(f) => f.metadata_mut(),
             FrameType::InputAudioRaw(f) => f.metadata_mut(),
@@ -2281,6 +2295,8 @@ impl Frame for FrameType {
     fn transport_source(&self) -> Option<&str> {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_source(),
+            FrameType::TTSAudioRaw(f) => f.transport_source(),
+            FrameType::SpeechOutputAudioRaw(f) => f.transport_source(),
             FrameType::OutputImageRaw(f) => f.transport_source(),
             FrameType::Sprite(f) => f.transport_source(),
             FrameType::InputAudioRaw(f) => f.transport_source(),
@@ -2314,6 +2330,8 @@ impl Frame for FrameType {
     fn set_transport_source(&mut self, source: Option<String>) {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_source(source),
+            FrameType::TTSAudioRaw(f) => f.set_transport_source(source),
+            FrameType::SpeechOutputAudioRaw(f) => f.set_transport_source(source),
             FrameType::OutputImageRaw(f) => f.set_transport_source(source),
             FrameType::Sprite(f) => f.set_transport_source(source),
             FrameType::InputAudioRaw(f) => f.set_transport_source(source),
@@ -2325,6 +2343,7 @@ impl Frame for FrameType {
             FrameType::Error(f) => f.set_transport_source(source),
             FrameType::UserStartedSpeaking(f) => f.set_transport_source(source),
             FrameType::UserStoppedSpeaking(f) => f.set_transport_source(source),
+
             FrameType::StartInterruption(f) => f.set_transport_source(source),
             FrameType::StopInterruption(f) => f.set_transport_source(source),
             FrameType::BotInterruption(f) => f.set_transport_source(source),
@@ -2347,6 +2366,8 @@ impl Frame for FrameType {
     fn transport_destination(&self) -> Option<&str> {
         match self {
             FrameType::OutputAudioRaw(f) => f.transport_destination(),
+            FrameType::TTSAudioRaw(f) => f.transport_destination(),
+            FrameType::SpeechOutputAudioRaw(f) => f.transport_destination(),
             FrameType::OutputImageRaw(f) => f.transport_destination(),
             FrameType::Sprite(f) => f.transport_destination(),
             FrameType::InputAudioRaw(f) => f.transport_destination(),
@@ -2380,6 +2401,8 @@ impl Frame for FrameType {
     fn set_transport_destination(&mut self, destination: Option<String>) {
         match self {
             FrameType::OutputAudioRaw(f) => f.set_transport_destination(destination),
+            FrameType::TTSAudioRaw(f) => f.set_transport_destination(destination),
+            FrameType::SpeechOutputAudioRaw(f) => f.set_transport_destination(destination),
             FrameType::OutputImageRaw(f) => f.set_transport_destination(destination),
             FrameType::Sprite(f) => f.set_transport_destination(destination),
             FrameType::InputAudioRaw(f) => f.set_transport_destination(destination),
@@ -2415,6 +2438,8 @@ impl fmt::Display for FrameType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FrameType::OutputAudioRaw(frame) => frame.fmt(f),
+            FrameType::TTSAudioRaw(frame) => frame.fmt(f),
+            FrameType::SpeechOutputAudioRaw(frame) => frame.fmt(f),
             FrameType::OutputImageRaw(frame) => frame.fmt(f),
             FrameType::Sprite(frame) => frame.fmt(f),
             FrameType::InputAudioRaw(frame) => write!(f, "{}", frame.name()),
@@ -2474,7 +2499,10 @@ impl FrameType {
         matches!(
             self,
             FrameType::OutputAudioRaw(_)
+                | FrameType::TTSAudioRaw(_)
+                | FrameType::SpeechOutputAudioRaw(_)
                 | FrameType::OutputImageRaw(_)
+                | FrameType::Sprite(_)
                 | FrameType::InputAudioRaw(_)
                 | FrameType::InputImageRaw(_)
                 | FrameType::Text(_)
@@ -2487,6 +2515,8 @@ impl FrameType {
         matches!(
             self,
             FrameType::End(_)
+                | FrameType::Stop(_)
+                | FrameType::FilterControl(_)
                 | FrameType::LLMFullResponseStart(_)
                 | FrameType::LLMFullResponseEnd(_)
         )
@@ -2632,5 +2662,212 @@ mod tests {
         let display_str = format!("{}", error_frame);
         assert!(display_str.contains("Test error"));
         assert!(display_str.contains("fatal: false"));
+    }
+
+    /// Example usage of TTSAudioRawFrame
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_tts_audio_raw_frame() {
+            // Create some sample audio data
+            let audio_data = vec![0u8; 1024]; // 1KB of silence
+            let sample_rate = 22050;
+            let num_channels = 1;
+
+            // Create a TTSAudioRawFrame
+            let tts_frame = TTSAudioRawFrame::new(audio_data.clone(), sample_rate, num_channels);
+
+            // Verify the frame properties
+            assert_eq!(tts_frame.name(), "TTSAudioRawFrame");
+            assert_eq!(
+                tts_frame.output_audio_frame.audio_frame.sample_rate,
+                sample_rate
+            );
+            assert_eq!(
+                tts_frame.output_audio_frame.audio_frame.num_channels,
+                num_channels
+            );
+            assert_eq!(tts_frame.output_audio_frame.audio_frame.audio, audio_data);
+
+            // Verify it can be wrapped in FrameType
+            let frame_type = FrameType::TTSAudioRaw(tts_frame.clone());
+            assert_eq!(frame_type.name(), "TTSAudioRawFrame");
+
+            // Verify the display format works
+            let display_str = format!("{}", tts_frame);
+            assert!(display_str.contains("TTSAudioRawFrame"));
+            assert!(display_str.contains(&sample_rate.to_string()));
+            assert!(display_str.contains(&num_channels.to_string()));
+        }
+
+        #[test]
+        fn test_speech_output_audio_raw_frame() {
+            // Create some sample audio data
+            let audio_data = vec![0u8; 2048]; // 2KB of audio data
+            let sample_rate = 16000;
+            let num_channels = 1;
+
+            // Create a SpeechOutputAudioRawFrame
+            let speech_frame =
+                SpeechOutputAudioRawFrame::new(audio_data.clone(), sample_rate, num_channels);
+
+            // Verify the frame properties
+            assert_eq!(speech_frame.name(), "SpeechOutputAudioRawFrame");
+            assert_eq!(
+                speech_frame.output_audio_frame.audio_frame.sample_rate,
+                sample_rate
+            );
+            assert_eq!(
+                speech_frame.output_audio_frame.audio_frame.num_channels,
+                num_channels
+            );
+            assert_eq!(
+                speech_frame.output_audio_frame.audio_frame.audio,
+                audio_data
+            );
+
+            // Verify it can be wrapped in FrameType
+            let frame_type = FrameType::SpeechOutputAudioRaw(speech_frame.clone());
+            assert_eq!(frame_type.name(), "SpeechOutputAudioRawFrame");
+            assert!(frame_type.is_data_frame());
+            assert!(!frame_type.is_system_frame());
+            assert!(!frame_type.is_control_frame());
+
+            // Verify the display format works
+            let display_str = format!("{}", speech_frame);
+            assert!(display_str.contains("SpeechOutputAudioRawFrame"));
+            assert!(display_str.contains(&sample_rate.to_string()));
+            assert!(display_str.contains(&num_channels.to_string()));
+        }
+    }
+}
+
+/// Audio data frame generated by Text-to-Speech services
+///
+/// A chunk of output audio generated by a TTS service, ready for playback.
+#[derive(Debug, Clone)]
+pub struct TTSAudioRawFrame {
+    pub output_audio_frame: OutputAudioRawFrame,
+}
+
+/// An audio frame part of a speech audio stream
+///
+/// This frame is part of a continuous stream of audio frames containing speech.
+/// The audio stream might also contain silence frames, so a process to distinguish
+/// between speech and silence might be needed.
+#[derive(Debug, Clone)]
+pub struct SpeechOutputAudioRawFrame {
+    pub output_audio_frame: OutputAudioRawFrame,
+}
+
+impl TTSAudioRawFrame {
+    pub fn new(audio: Vec<u8>, sample_rate: u32, num_channels: u16) -> Self {
+        let mut output_audio_frame = OutputAudioRawFrame::new(audio, sample_rate, num_channels);
+        output_audio_frame.data_frame.base.name = "TTSAudioRawFrame".to_string();
+        Self { output_audio_frame }
+    }
+}
+
+impl SpeechOutputAudioRawFrame {
+    pub fn new(audio: Vec<u8>, sample_rate: u32, num_channels: u16) -> Self {
+        let mut output_audio_frame = OutputAudioRawFrame::new(audio, sample_rate, num_channels);
+        output_audio_frame.data_frame.base.name = "SpeechOutputAudioRawFrame".to_string();
+        Self { output_audio_frame }
+    }
+}
+
+impl Frame for TTSAudioRawFrame {
+    fn id(&self) -> u64 {
+        self.output_audio_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.output_audio_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.output_audio_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.output_audio_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.output_audio_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.output_audio_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.output_audio_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.output_audio_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.output_audio_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.output_audio_frame
+            .set_transport_destination(destination)
+    }
+}
+
+impl Frame for SpeechOutputAudioRawFrame {
+    fn id(&self) -> u64 {
+        self.output_audio_frame.id()
+    }
+    fn name(&self) -> &str {
+        self.output_audio_frame.name()
+    }
+    fn pts(&self) -> Option<u64> {
+        self.output_audio_frame.pts()
+    }
+    fn set_pts(&mut self, pts: Option<u64>) {
+        self.output_audio_frame.set_pts(pts)
+    }
+    fn metadata(&self) -> &HashMap<String, String> {
+        self.output_audio_frame.metadata()
+    }
+    fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
+        self.output_audio_frame.metadata_mut()
+    }
+    fn transport_source(&self) -> Option<&str> {
+        self.output_audio_frame.transport_source()
+    }
+    fn set_transport_source(&mut self, source: Option<String>) {
+        self.output_audio_frame.set_transport_source(source)
+    }
+    fn transport_destination(&self) -> Option<&str> {
+        self.output_audio_frame.transport_destination()
+    }
+    fn set_transport_destination(&mut self, destination: Option<String>) {
+        self.output_audio_frame
+            .set_transport_destination(destination)
+    }
+}
+
+impl fmt::Display for TTSAudioRawFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}(pts: {:?}, sample_rate: {}, channels: {})",
+            self.name(),
+            self.pts(),
+            self.output_audio_frame.audio_frame.sample_rate,
+            self.output_audio_frame.audio_frame.num_channels
+        )
+    }
+}
+
+impl fmt::Display for SpeechOutputAudioRawFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}(pts: {:?}, sample_rate: {}, channels: {})",
+            self.name(),
+            self.pts(),
+            self.output_audio_frame.audio_frame.sample_rate,
+            self.output_audio_frame.audio_frame.num_channels
+        )
     }
 }
