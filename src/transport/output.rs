@@ -56,7 +56,6 @@ struct BaseOutputTransportInner {
 pub struct BaseOutputTransport {
     inner: Arc<Mutex<BaseOutputTransportInner>>,
     pub frame_processor: Arc<Mutex<FrameProcessor>>,
-    #[allow(dead_code)]
     task_manager: Arc<TaskManager>,
 }
 

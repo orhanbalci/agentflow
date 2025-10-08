@@ -4,6 +4,7 @@
 // input processing, interruption management, and frame flow control.
 
 use async_trait::async_trait;
+use delegate::delegate;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -345,76 +346,31 @@ impl BaseInputTransport {
 
 #[async_trait]
 impl FrameProcessorTrait for BaseInputTransport {
-    // Delegate basic methods to frame_processor
-    fn id(&self) -> u64 {
-        self.frame_processor.id()
+    // Use delegate macro for all sync methods
+    delegate! {
+        to self.frame_processor {
+            fn id(&self) -> u64;
+            fn is_started(&self) -> bool;
+            fn is_cancelling(&self) -> bool;
+            fn set_allow_interruptions(&mut self, allow: bool);
+            fn set_enable_metrics(&mut self, enable: bool);
+            fn set_enable_usage_metrics(&mut self, enable: bool);
+            fn set_report_only_initial_ttfb(&mut self, report: bool);
+            fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
+            fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
+            fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>);
+            fn clear_processors(&mut self);
+            fn is_compound_processor(&self) -> bool;
+            fn processor_count(&self) -> usize;
+            fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>>;
+            fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>>;
+            fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
+            fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
+            fn name(&self) -> &str;
+        }
     }
 
-    fn is_started(&self) -> bool {
-        self.frame_processor.is_started()
-    }
-
-    fn is_cancelling(&self) -> bool {
-        self.frame_processor.is_cancelling()
-    }
-
-    fn set_allow_interruptions(&mut self, allow: bool) {
-        self.frame_processor.set_allow_interruptions(allow);
-    }
-
-    fn set_enable_metrics(&mut self, enable: bool) {
-        self.frame_processor.set_enable_metrics(enable);
-    }
-
-    fn set_enable_usage_metrics(&mut self, enable: bool) {
-        self.frame_processor.set_enable_usage_metrics(enable);
-    }
-
-    fn set_report_only_initial_ttfb(&mut self, report: bool) {
-        self.frame_processor.set_report_only_initial_ttfb(report);
-    }
-
-    fn set_clock(&mut self, clock: Arc<dyn BaseClock>) {
-        self.frame_processor.set_clock(clock);
-    }
-
-    fn set_task_manager(&mut self, task_manager: Arc<TaskManager>) {
-        self.frame_processor.set_task_manager(task_manager);
-    }
-
-    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>) {
-        self.frame_processor.add_processor(processor);
-    }
-
-    fn clear_processors(&mut self) {
-        self.frame_processor.clear_processors();
-    }
-
-    fn is_compound_processor(&self) -> bool {
-        self.frame_processor.is_compound_processor()
-    }
-
-    fn processor_count(&self) -> usize {
-        self.frame_processor.processor_count()
-    }
-
-    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>> {
-        self.frame_processor.get_processor(index)
-    }
-
-    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>> {
-        self.frame_processor.processors()
-    }
-
-    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>) {
-        self.frame_processor.link(next);
-    }
-
-    fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>) {
-        self.frame_processor.add_interruption_strategy(strategy);
-    }
-
-    // Async methods
+    // Async methods - delegate to frame_processor
     async fn create_task<F, Fut>(
         &self,
         future: F,
@@ -476,6 +432,8 @@ impl FrameProcessorTrait for BaseInputTransport {
             .queue_frame(frame, direction, callback)
             .await
     }
+
+    // Custom process_frame implementation - not delegated
 
     async fn process_frame(
         &mut self,
@@ -544,10 +502,6 @@ impl FrameProcessorTrait for BaseInputTransport {
         }
 
         Ok(())
-    }
-
-    fn name(&self) -> &str {
-        self.frame_processor.name()
     }
 }
 
