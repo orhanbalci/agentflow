@@ -13,13 +13,14 @@ use crate::audio::resampler::{BaseAudioResampler, RubatoAudioResampler};
 use crate::audio::utils::is_silence;
 use crate::frames::{
     BotSpeakingFrame, BotStartedSpeakingFrame, BotStoppedSpeakingFrame, EndFrame, Frame, FrameType,
-    OutputAudioRawFrame, OutputImageRawFrame, SpriteFrame, StartFrame,
+    OutputAudioRawFrame, OutputImageRawFrame, StartFrame,
 };
-use crate::processors::frame::{FrameDirection, FrameProcessorInterface};
+use crate::processors::frame::FrameDirection;
 use crate::task_manager::TaskHandle;
 use crate::transport::output::BaseOutputTransport;
 use crate::transport::output::TransportMessageFrameType;
 use crate::transport::params::TransportParams;
+use crate::FrameProcessorTrait;
 
 // Type alias for frame queues per destination
 type AudioQueue = mpsc::UnboundedSender<FrameType>;

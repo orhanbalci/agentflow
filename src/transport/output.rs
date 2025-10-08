@@ -16,8 +16,8 @@ use crate::frames::{
     TransportMessageUrgentFrame,
 };
 use crate::processors::frame::{
-    BaseInterruptionStrategy, FrameCallback, FrameDirection, FrameProcessor,
-    FrameProcessorInterface, FrameProcessorMetrics, FrameProcessorSetup, FrameProcessorTrait,
+    BaseInterruptionStrategy, FrameCallback, FrameDirection, FrameProcessor, FrameProcessorMetrics,
+    FrameProcessorSetup, FrameProcessorTrait,
 };
 use crate::task_manager::{TaskHandle, TaskManager};
 use crate::transport::media_sender::MediaSender;
@@ -70,7 +70,7 @@ impl BaseOutputTransport {
         let processor_name = name.unwrap_or_else(|| "BaseOutputTransport".to_string());
         let frame_processor = FrameProcessor::new(processor_name, Arc::clone(&task_manager));
 
-        let inner = BaseOutputTransportInner {
+        let inner: BaseOutputTransportInner = BaseOutputTransportInner {
             params,
             sample_rate: AtomicU32::new(0),
             audio_chunk_size: AtomicU32::new(0),
@@ -412,33 +412,42 @@ impl BaseOutputTransport {
 
     /// Send an audio frame downstream.
     pub async fn send_audio(
-        &self,
+        &mut self,
         frame: OutputAudioRawFrame,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.push_frame(FrameType::OutputAudioRaw(frame), FrameDirection::Downstream)
-            .await
-            .map_err(|e| {
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
-                    as Box<dyn std::error::Error + Send + Sync>
-            })
+        self.queue_frame(
+            FrameType::OutputAudioRaw(frame),
+            FrameDirection::Downstream,
+            None,
+        )
+        .await
+        .map_err(|e| {
+            Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))
+                as Box<dyn std::error::Error + Send + Sync>
+        })
     }
 
     /// Send an image frame downstream.
     pub async fn send_image(
-        &self,
+        &mut self,
         frame: ImageFrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let result = match frame {
             ImageFrameType::OutputImageRaw(img_frame) => {
-                self.push_frame(
+                self.queue_frame(
                     FrameType::OutputImageRaw(img_frame),
                     FrameDirection::Downstream,
+                    None,
                 )
                 .await
             }
             ImageFrameType::Sprite(sprite_frame) => {
-                self.push_frame(FrameType::Sprite(sprite_frame), FrameDirection::Downstream)
-                    .await
+                self.queue_frame(
+                    FrameType::Sprite(sprite_frame),
+                    FrameDirection::Downstream,
+                    None,
+                )
+                .await
             }
         };
         result.map_err(|e| {
@@ -447,107 +456,58 @@ impl BaseOutputTransport {
         })
     }
 
-    /// Handle frames by delegating to appropriate media sender processing.
+    /// Handle frames by routing them to appropriate media senders.
     ///
-    /// This method routes frames to the correct media sender based on the
-    /// transport destination, following the Python implementation pattern.
-    async fn _handle_frame(
+    /// This method follows the Python implementation pattern exactly.
+    async fn handle_frame(
         &self,
         frame: FrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Get the transport destination from the frame
         let transport_destination = frame.transport_destination().map(|s| s.to_string());
 
-        // Check if we have a media sender for this destination
-        let inner = self.inner.lock().await;
+        // Get the media sender for this destination (single lock)
+        let mut inner = self.inner.lock().await;
+
         if !inner.media_senders.contains_key(&transport_destination) {
             log::warn!(
-                "Destination {:?} not registered for frame {}",
+                "{} destination [{:?}] not registered for frame {}",
+                "BaseOutputTransport",
                 transport_destination,
                 frame.name()
             );
             return Ok(());
         }
-        drop(inner); // Release the lock early
 
-        // Get the media sender for this destination
-        let mut inner = self.inner.lock().await;
-        let sender = inner.media_senders.get_mut(&transport_destination);
+        let sender = inner.media_senders.get_mut(&transport_destination).unwrap();
 
-        if let Some(sender) = sender {
-            // Route frame to appropriate handler based on frame type (following Python pattern)
-            match frame {
-                // Interruption frames
-                FrameType::StartInterruption(_)
-                | FrameType::StopInterruption(_)
-                | FrameType::BotInterruption(_) => {
-                    sender.handle_interruptions(frame).await?;
-                }
-                // Audio frames
-                FrameType::OutputAudioRaw(audio_frame) => {
-                    log::debug!(
-                        "Handling audio frame for destination: {:?}",
-                        transport_destination
-                    );
-                    sender.handle_audio_frame(&audio_frame).await?;
-                }
-                FrameType::TTSAudioRaw(tts_frame) => {
-                    log::debug!(
-                        "Handling TTS audio frame for destination: {:?}",
-                        transport_destination
-                    );
-                    sender
-                        .handle_audio_frame(&tts_frame.output_audio_frame)
-                        .await?;
-                }
-                FrameType::SpeechOutputAudioRaw(speech_frame) => {
-                    log::debug!(
-                        "Handling speech audio frame for destination: {:?}",
-                        transport_destination
-                    );
-                    sender
-                        .handle_audio_frame(&speech_frame.output_audio_frame)
-                        .await?;
-                }
-                // Image/Video frames
-                FrameType::OutputImageRaw(image_frame) => {
-                    log::debug!(
-                        "Handling image frame for destination: {:?}",
-                        transport_destination
-                    );
-                    sender
-                        .handle_image_frame(FrameType::OutputImageRaw(image_frame.clone()))
-                        .await?;
-                }
-                FrameType::Sprite(sprite_frame) => {
-                    log::debug!(
-                        "Handling sprite frame for destination: {:?}",
-                        transport_destination
-                    );
-                    sender
-                        .handle_image_frame(FrameType::Sprite(sprite_frame.clone()))
-                        .await?;
-                }
-                // Mixer control frames (when available)
-                // FrameType::MixerControl(mixer_frame) => {
-                //     sender.handle_mixer_control_frame(frame).await?;
-                // }
-                // Frames with presentation timestamps
-                _ if frame.pts().is_some() => {
-                    log::debug!(
-                        "Handling timed frame for destination: {:?}",
-                        transport_destination
-                    );
-                    sender.handle_timed_frame(frame).await?;
-                }
-                // All other frames (sync frames)
-                _ => {
-                    log::debug!(
-                        "Handling sync frame for destination: {:?}",
-                        transport_destination
-                    );
-                    sender.handle_sync_frame(frame).await?;
-                }
+        // Route frame to appropriate handler based on frame type (following Python pattern)
+        match frame {
+            // Interruption frames (equivalent to isinstance(frame, InterruptionFrame))
+            FrameType::StartInterruption(_)
+            | FrameType::StopInterruption(_)
+            | FrameType::BotInterruption(_) => {
+                sender.handle_interruptions(frame).await?;
+            }
+            // Audio frames (equivalent to isinstance(frame, OutputAudioRawFrame))
+            FrameType::OutputAudioRaw(ref audio_frame) => {
+                sender.handle_audio_frame(audio_frame).await?;
+            }
+            // Image/Video frames (equivalent to isinstance(frame, (OutputImageRawFrame, SpriteFrame)))
+            FrameType::OutputImageRaw(_) | FrameType::Sprite(_) => {
+                sender.handle_image_frame(frame).await?;
+            }
+            // Mixer control frames (when available)
+            // FrameType::MixerControl(_) => {
+            //     sender.handle_mixer_control_frame(frame).await?;
+            // }
+            // Frames with presentation timestamps (equivalent to frame.pts)
+            _ if frame.pts().is_some() => {
+                sender.handle_timed_frame(frame).await?;
+            }
+            // All other frames (sync frames)
+            _ => {
+                sender.handle_sync_frame(frame).await?;
             }
         }
 
@@ -696,135 +656,9 @@ impl BaseOutputTransport {
     }
 }
 
+// Implement the FrameProcessornterface trait for BaseOutputTransport
 #[async_trait]
 impl FrameProcessorTrait for BaseOutputTransport {
-    fn name(&self) -> &str {
-        "BaseOutputTransport"
-    }
-
-    async fn process_frame(
-        &mut self,
-        frame: FrameType,
-        direction: FrameDirection,
-    ) -> Result<(), String> {
-        // System frames (like InterruptionFrame) are pushed immediately. Other
-        // frames require order so they are put in the sink queue.
-        match &frame {
-            FrameType::Start(start_frame) => {
-                // Push StartFrame before start(), because we want StartFrame to be
-                // processed by every processor before any other frame is processed.
-                self.push_frame(FrameType::Start(start_frame.clone()), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                self.start(start_frame).await.map_err(|e| e.to_string())?;
-            }
-            FrameType::Cancel(cancel_frame) => {
-                self.cancel(cancel_frame).await.map_err(|e| e.to_string())?;
-                self.push_frame(FrameType::Cancel(cancel_frame.clone()), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            // Handle interruption frames
-            FrameType::StartInterruption(_) => {
-                self.push_frame(frame.clone(), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            FrameType::StopInterruption(_) => {
-                self.push_frame(frame.clone(), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            FrameType::BotInterruption(_) => {
-                self.push_frame(frame.clone(), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            FrameType::TransportMessageUrgent(urgent_frame) => {
-                let frame_type = TransportMessageFrameType::Urgent(urgent_frame.clone());
-                self.send_message(frame_type)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            // System frames - frames that should be pushed through
-            FrameType::OutputTransportReady(_)
-            | FrameType::UserStartedSpeaking(_)
-            | FrameType::UserStoppedSpeaking(_)
-            | FrameType::BotStartedSpeaking(_)
-            | FrameType::BotSpeaking(_)
-            | FrameType::BotStoppedSpeaking(_)
-            | FrameType::EmulateUserStartedSpeaking(_)
-            | FrameType::EmulateUserStoppedSpeaking(_) => {
-                self.push_frame(frame.clone(), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            // Control frames
-            FrameType::End(end_frame) => {
-                self.stop(end_frame).await.map_err(|e| e.to_string())?;
-                // Keep pushing EndFrame down so all the pipeline stops nicely.
-                self.push_frame(FrameType::End(end_frame.clone()), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            // TODO: Add mixer control frame handling when available
-            // FrameType::MixerControl(_) => {
-            //     self._handle_frame(frame.clone())
-            //         .await
-            //         .map_err(|e| e.to_string())?;
-            // }
-            // Handle media frames
-            FrameType::OutputAudioRaw(_) => {
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            FrameType::OutputImageRaw(_) | FrameType::Sprite(_) => {
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            FrameType::TTSAudioRaw(_) | FrameType::SpeechOutputAudioRaw(_) => {
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            // Handle frames with presentation timestamps
-            _ if frame.pts().is_some() => {
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            // Handle upstream frames
-            _ if direction == FrameDirection::Upstream => {
-                self.push_frame(frame.clone(), direction)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-            // Handle all other frames
-            _ => {
-                self._handle_frame(frame.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-// Implement the FrameProcessorInterface trait for BaseOutputTransport
-#[async_trait]
-impl FrameProcessorInterface for BaseOutputTransport {
     delegate! {
         to self.frame_processor {
             fn id(&self) -> u64;
@@ -846,6 +680,128 @@ impl FrameProcessorInterface for BaseOutputTransport {
             fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
             fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
         }
+    }
+
+    async fn process_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+    ) -> Result<(), String> {
+        // Note: In Python this calls super().process_frame(frame, direction) first.
+        // In our Rust composition pattern, FrameProcessor provides infrastructure
+        // (push_frame, queue_frame, etc.) but doesn't have its own process_frame logic.
+        // The complete frame processing logic is implemented here in BaseOutputTransport.
+
+        //
+        // System frames (like InterruptionFrame) are pushed immediately. Other
+        // frames require order so they are put in the sink queue.
+        //
+        match &frame {
+            // StartFrame: Push before start() to ensure it's processed by every processor first
+            FrameType::Start(start_frame) => {
+                // Push StartFrame before start(), because we want StartFrame to be
+                // processed by every processor before any other frame is processed.
+                self.push_frame(FrameType::Start(start_frame.clone()), direction)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                self.start(start_frame).await.map_err(|e| e.to_string())?;
+            }
+            // CancelFrame: Cancel first, then push
+            FrameType::Cancel(cancel_frame) => {
+                self.cancel(cancel_frame).await.map_err(|e| e.to_string())?;
+                self.push_frame(FrameType::Cancel(cancel_frame.clone()), direction)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // InterruptionFrame: Push immediately then handle (equivalent to isinstance(frame, InterruptionFrame))
+            FrameType::StartInterruption(_)
+            | FrameType::StopInterruption(_)
+            | FrameType::BotInterruption(_) => {
+                self.push_frame(frame.clone(), direction)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                self.handle_frame(frame.clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // OutputTransportMessageUrgentFrame: Send message directly
+            FrameType::TransportMessageUrgent(urgent_frame) => {
+                let frame_type = TransportMessageFrameType::Urgent(urgent_frame.clone());
+                self.send_message(frame_type)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // TODO: Add OutputDTMFUrgentFrame when available
+            // FrameType::OutputDTMFUrgent(dtmf_frame) => {
+            //     self.write_dtmf(FrameType::OutputDTMFUrgent(dtmf_frame.clone()))
+            //         .await
+            //         .map_err(|e| e.to_string())?;
+            // }
+            // SystemFrame: Push through (equivalent to isinstance(frame, SystemFrame))
+            FrameType::OutputTransportReady(_)
+            | FrameType::UserStartedSpeaking(_)
+            | FrameType::UserStoppedSpeaking(_)
+            | FrameType::BotStartedSpeaking(_)
+            | FrameType::BotSpeaking(_)
+            | FrameType::BotStoppedSpeaking(_)
+            | FrameType::EmulateUserStartedSpeaking(_)
+            | FrameType::EmulateUserStoppedSpeaking(_)
+            | FrameType::TransportMessage(_)
+            | FrameType::Error(_) => {
+                self.push_frame(frame.clone(), direction)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // Control frames
+            // EndFrame: Stop first, then push to ensure pipeline stops nicely
+            FrameType::End(end_frame) => {
+                self.stop(end_frame).await.map_err(|e| e.to_string())?;
+                // Keep pushing EndFrame down so all the pipeline stops nicely.
+                self.push_frame(FrameType::End(end_frame.clone()), direction)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // MixerControlFrame: Handle directly (when available)
+            // FrameType::MixerControl(_) => {
+            //     self._handle_frame(frame.clone())
+            //         .await
+            //         .map_err(|e| e.to_string())?;
+            // }
+            // Other frames
+            // OutputAudioRawFrame: Handle directly
+            FrameType::OutputAudioRaw(_) => {
+                self.handle_frame(frame.clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // OutputImageRawFrame, SpriteFrame: Handle directly
+            FrameType::OutputImageRaw(_) | FrameType::Sprite(_) => {
+                self.handle_frame(frame.clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // TODO(aleix): Images and audio should support presentation timestamps.
+            // Frames with presentation timestamps: Handle directly
+            _ if frame.pts().is_some() => {
+                self.handle_frame(frame.clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // Upstream frames: Push through
+            _ if direction == FrameDirection::Upstream => {
+                self.push_frame(frame.clone(), direction)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            // All other frames: Handle directly
+            _ => {
+                self.handle_frame(frame.clone())
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        Ok(())
     }
 
     // Async methods must be implemented manually as delegate macro doesn't support async traits
@@ -897,6 +853,17 @@ impl FrameProcessorInterface for BaseOutputTransport {
     ) -> Result<(), String> {
         self.frame_processor
             .push_frame_with_callback(frame, direction, callback)
+            .await
+    }
+
+    async fn queue_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
+        self.frame_processor
+            .queue_frame(frame, direction, callback)
             .await
     }
 }

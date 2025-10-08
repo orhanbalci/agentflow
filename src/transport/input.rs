@@ -7,11 +7,16 @@ use async_trait::async_trait;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
-use crate::processors::frame::{FrameDirection, FrameProcessor, FrameProcessorTrait};
+use crate::processors::frame::{
+    BaseInterruptionStrategy, FrameCallback, FrameDirection, FrameProcessor, FrameProcessorMetrics,
+    FrameProcessorSetup, FrameProcessorTrait,
+};
 use crate::task_manager::{TaskHandle, TaskManager};
 use crate::transport::params::TransportParams;
+use crate::BaseClock;
 use crate::{
     FrameType, InputAudioRawFrame, InputImageRawFrame, StartFrame, StartInterruptionFrame,
     StopInterruptionFrame, UserStartedSpeakingFrame, UserStoppedSpeakingFrame,
@@ -340,6 +345,138 @@ impl BaseInputTransport {
 
 #[async_trait]
 impl FrameProcessorTrait for BaseInputTransport {
+    // Delegate basic methods to frame_processor
+    fn id(&self) -> u64 {
+        self.frame_processor.id()
+    }
+
+    fn is_started(&self) -> bool {
+        self.frame_processor.is_started()
+    }
+
+    fn is_cancelling(&self) -> bool {
+        self.frame_processor.is_cancelling()
+    }
+
+    fn set_allow_interruptions(&mut self, allow: bool) {
+        self.frame_processor.set_allow_interruptions(allow);
+    }
+
+    fn set_enable_metrics(&mut self, enable: bool) {
+        self.frame_processor.set_enable_metrics(enable);
+    }
+
+    fn set_enable_usage_metrics(&mut self, enable: bool) {
+        self.frame_processor.set_enable_usage_metrics(enable);
+    }
+
+    fn set_report_only_initial_ttfb(&mut self, report: bool) {
+        self.frame_processor.set_report_only_initial_ttfb(report);
+    }
+
+    fn set_clock(&mut self, clock: Arc<dyn BaseClock>) {
+        self.frame_processor.set_clock(clock);
+    }
+
+    fn set_task_manager(&mut self, task_manager: Arc<TaskManager>) {
+        self.frame_processor.set_task_manager(task_manager);
+    }
+
+    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>) {
+        self.frame_processor.add_processor(processor);
+    }
+
+    fn clear_processors(&mut self) {
+        self.frame_processor.clear_processors();
+    }
+
+    fn is_compound_processor(&self) -> bool {
+        self.frame_processor.is_compound_processor()
+    }
+
+    fn processor_count(&self) -> usize {
+        self.frame_processor.processor_count()
+    }
+
+    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>> {
+        self.frame_processor.get_processor(index)
+    }
+
+    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>> {
+        self.frame_processor.processors()
+    }
+
+    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>) {
+        self.frame_processor.link(next);
+    }
+
+    fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>) {
+        self.frame_processor.add_interruption_strategy(strategy);
+    }
+
+    // Async methods
+    async fn create_task<F, Fut>(
+        &self,
+        future: F,
+        name: Option<String>,
+    ) -> Result<TaskHandle, String>
+    where
+        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.frame_processor.create_task(future, name).await
+    }
+
+    async fn cancel_task(
+        &self,
+        task: &TaskHandle,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<(), String> {
+        self.frame_processor.cancel_task(task, timeout).await
+    }
+
+    async fn get_metrics(&self) -> FrameProcessorMetrics {
+        self.frame_processor.get_metrics().await
+    }
+
+    async fn setup(&mut self, setup: FrameProcessorSetup) -> Result<(), String> {
+        self.frame_processor.setup(setup).await
+    }
+
+    async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String> {
+        self.frame_processor.setup_all_processors(setup).await
+    }
+
+    async fn cleanup_all_processors(&self) -> Result<(), String> {
+        self.frame_processor.cleanup_all_processors().await
+    }
+
+    async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
+        self.frame_processor.push_frame(frame, direction).await
+    }
+
+    async fn push_frame_with_callback(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
+        self.frame_processor
+            .push_frame_with_callback(frame, direction, callback)
+            .await
+    }
+
+    async fn queue_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
+        self.frame_processor
+            .queue_frame(frame, direction, callback)
+            .await
+    }
+
     async fn process_frame(
         &mut self,
         frame: FrameType,

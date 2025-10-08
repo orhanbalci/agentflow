@@ -102,7 +102,8 @@ pub struct FrameProcessorSetup {
 
 // Main frame processor trait
 #[async_trait]
-pub trait FrameProcessorTrait: Send + Sync {
+// Core frame processing trait for actual frame processing logic
+pub trait FrameProcessorCore: Send + Sync {
     async fn process_frame(
         &mut self,
         frame: FrameType,
@@ -114,10 +115,9 @@ pub trait FrameProcessorTrait: Send + Sync {
     }
 }
 
-// Frame processor interface trait
-// This trait abstracts all the functionality that can be delegated from other components
+// Main frame processor trait that includes all frame processor functionality
 #[async_trait]
-pub trait FrameProcessorInterface: Send + Sync {
+pub trait FrameProcessorTrait: Send + Sync {
     // Basic processor information
     fn id(&self) -> u64;
     fn name(&self) -> &str;
@@ -173,6 +173,23 @@ pub trait FrameProcessorInterface: Send + Sync {
         direction: FrameDirection,
         callback: Option<FrameCallback>,
     ) -> Result<(), String>;
+    async fn queue_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String>;
+
+    // Core frame processing method
+    async fn process_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+    ) -> Result<(), String>;
+
+    fn can_generate_metrics(&self) -> bool {
+        false
+    }
 }
 
 // Interruption strategy trait
@@ -264,7 +281,7 @@ pub struct FrameProcessor {
     metrics: Arc<Mutex<FrameProcessorMetrics>>,
 
     // Custom processor implementation
-    processor_impl: Option<Box<dyn FrameProcessorTrait>>,
+    processor_impl: Option<Box<dyn FrameProcessorCore>>,
 
     // Sub-processors for compound processors (pipelines, parallel pipelines)
     processors: Vec<Arc<Mutex<FrameProcessor>>>,
@@ -321,10 +338,10 @@ impl FrameProcessor {
         self
     }
 
-    pub fn with_processor_impl(mut self, processor: Box<dyn FrameProcessorTrait>) -> Self {
-        self.processor_impl = Some(processor);
-        self
-    }
+    // pub fn with_processor_impl(mut self, processor: Box<dyn FrameProcessorTrait>) -> Self {
+    //     self.processor_impl = Some(processor);
+    //     self
+    // }
 
     /// Create a new compound processor (pipeline or parallel pipeline)
     pub fn new_compound(
@@ -1154,7 +1171,7 @@ impl FrameProcessor {
 
 // Implement the FrameProcessorInterface trait for FrameProcessor
 #[async_trait]
-impl FrameProcessorInterface for FrameProcessor {
+impl FrameProcessorTrait for FrameProcessor {
     // Basic processor information
     fn id(&self) -> u64 {
         self.id
@@ -1316,12 +1333,68 @@ impl FrameProcessorInterface for FrameProcessor {
 
         self.queue_frame(frame, direction, callback).await
     }
+
+    async fn queue_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
+        // If we are cancelling we don't want to process any other frame.
+        if self.cancelling.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        if self.enable_direct_mode {
+            // For direct mode, process frame directly and call callback
+            log::debug!("{}: Processing frame {} in direct mode", self, frame.name());
+            self.process_frame_direct(frame, direction, callback).await
+        } else {
+            let priority = if frame.is_system_frame() { 1 } else { 2 };
+            let counter = if frame.is_system_frame() {
+                self.high_counter.fetch_add(1, Ordering::Relaxed)
+            } else {
+                self.low_counter.fetch_add(1, Ordering::Relaxed)
+            };
+
+            let item = QueueItem {
+                priority,
+                counter,
+                frame,
+                direction,
+                callback,
+            };
+
+            if let Some(tx) = &self.input_tx {
+                tx.send(item)
+                    .map_err(|e| format!("Failed to queue frame: {}", e))?;
+            }
+
+            Ok(())
+        }
+    }
+
+    // Core frame processing method
+    async fn process_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+    ) -> Result<(), String> {
+        // Default implementation processes the frame through the pipeline
+        if let Some(processor_impl) = &mut self.processor_impl {
+            // If we have a processor implementation, delegate to it
+            processor_impl.process_frame(frame, direction).await
+        } else {
+            // Default processing - just pass frame downstream
+            self.push_frame(frame, direction).await
+        }
+    }
 }
 
 // Implement the FrameProcessorInterface trait for Arc<Mutex<FrameProcessor>>
 // This allows direct usage of the interface without manually locking
 #[async_trait]
-impl FrameProcessorInterface for Arc<Mutex<FrameProcessor>> {
+impl FrameProcessorTrait for Arc<Mutex<FrameProcessor>> {
     // Basic processor information
     fn id(&self) -> u64 {
         // For sync methods with tokio::Mutex, we need to block on the async operation
@@ -1536,5 +1609,25 @@ impl FrameProcessorInterface for Arc<Mutex<FrameProcessor>> {
         processor
             .push_frame_with_callback(frame, direction, callback)
             .await
+    }
+
+    async fn queue_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+        callback: Option<FrameCallback>,
+    ) -> Result<(), String> {
+        let mut processor = self.lock().await;
+        processor.queue_frame(frame, direction, callback).await
+    }
+
+    // Core frame processing method
+    async fn process_frame(
+        &mut self,
+        frame: FrameType,
+        direction: FrameDirection,
+    ) -> Result<(), String> {
+        let mut processor = self.lock().await;
+        processor.process_frame(frame, direction).await
     }
 }
