@@ -10,12 +10,15 @@ use tokio::sync::Mutex;
 
 use crate::audio::mixer::BaseAudioMixer;
 use crate::audio::resampler::{BaseAudioResampler, RubatoAudioResampler};
+use crate::audio::utils::is_silence;
 use crate::frames::{
-    EndFrame, FrameType, OutputAudioRawFrame, OutputImageRawFrame, SpriteFrame, StartFrame,
+    BotSpeakingFrame, BotStartedSpeakingFrame, BotStoppedSpeakingFrame, EndFrame, Frame, FrameType,
+    OutputAudioRawFrame, OutputImageRawFrame, SpriteFrame, StartFrame,
 };
 use crate::processors::frame::{FrameDirection, FrameProcessorInterface};
 use crate::task_manager::TaskHandle;
 use crate::transport::output::BaseOutputTransport;
+use crate::transport::output::TransportMessageFrameType;
 use crate::transport::params::TransportParams;
 
 // Type alias for frame queues per destination
@@ -219,17 +222,19 @@ impl MediaSender {
         Ok(())
     }
 
-    /// Handle audio frames by adding to buffer
+    /// Handle audio frames by sending to audio queue
     pub async fn handle_audio_frame(
         &self,
         frame: &OutputAudioRawFrame,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut inner_guard = self.inner.lock().await;
+        let inner_guard = self.inner.lock().await;
 
-        // Add audio data to buffer for processing by audio task
-        inner_guard
-            .audio_buffer
-            .extend_from_slice(&frame.audio_frame.audio);
+        if inner_guard.params.audio_out_enabled {
+            // Send frame to audio queue if available
+            if let Some(ref audio_sender) = inner_guard.audio_queue {
+                let _ = audio_sender.send(FrameType::OutputAudioRaw(frame.clone()));
+            }
+        }
 
         Ok(())
     }
@@ -306,7 +311,7 @@ impl MediaSender {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
-            
+
         self.send_timed_frame(timestamp, frame).await?;
         Ok(())
     }
@@ -335,16 +340,21 @@ impl MediaSender {
 
     /// Send a timed frame to the clock queue for scheduled delivery
     /// This is equivalent to putting frames into the Python _clock_queue
-    pub async fn send_timed_frame(&self, timestamp: u64, frame: FrameType) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn send_timed_frame(
+        &self,
+        timestamp: u64,
+        frame: FrameType,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner_guard = self.inner.lock().await;
-        
+
         if let Some(ref clock_sender) = inner_guard.clock_queue {
             // Use timestamp as priority (earlier timestamps have higher priority)
             let priority = timestamp;
-            clock_sender.send((timestamp, priority, frame))
+            clock_sender
+                .send((timestamp, priority, frame))
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
         }
-        
+
         Ok(())
     }
 
@@ -390,8 +400,8 @@ impl MediaSender {
             let transport_weak = Arc::downgrade(transport);
             let clock_task = transport
                 .create_task(
-                    move |_ctx| async move { 
-                        Self::clock_task_handler(inner_clone, clock_queue_rx, transport_weak).await 
+                    move |_ctx| async move {
+                        Self::clock_task_handler(inner_clone, clock_queue_rx, transport_weak).await
                     },
                     Some(format!("ClockTask-{:?}", inner_guard.destination)),
                 )
@@ -412,13 +422,16 @@ impl MediaSender {
         inner_guard: &mut MediaSenderInner,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if !inner_guard.audio_task.is_some() && inner_guard.params.audio_out_enabled {
-            let (audio_queue_tx, _audio_queue_rx) = mpsc::unbounded_channel();
+            let (audio_queue_tx, audio_queue_rx) = mpsc::unbounded_channel();
             inner_guard.audio_queue = Some(audio_queue_tx);
 
             let inner_clone = Arc::clone(&self.inner);
+            let transport_weak = Arc::downgrade(transport);
             let audio_task = transport
                 .create_task(
-                    move |_ctx| async move { Self::audio_task_handler(inner_clone).await },
+                    move |_ctx| async move {
+                        Self::audio_task_handler(inner_clone, audio_queue_rx, transport_weak).await
+                    },
                     Some(format!("AudioTask-{:?}", inner_guard.destination)),
                 )
                 .await
@@ -727,7 +740,7 @@ impl MediaSender {
         transport_weak: std::sync::Weak<BaseOutputTransport>,
     ) {
         let mut running = true;
-        
+
         while running {
             // Get timed frame from clock queue (Python: timestamp, _, frame = await self._clock_queue.get())
             let (timestamp, _priority, frame) = match clock_queue_rx.recv().await {
@@ -761,11 +774,15 @@ impl MediaSender {
                     if timestamp > current_time {
                         let wait_time_nanos = timestamp - current_time;
                         let wait_time_secs = wait_time_nanos as f64 / 1_000_000_000.0;
-                        tokio::time::sleep(std::time::Duration::from_secs_f64(wait_time_secs)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs_f64(wait_time_secs))
+                            .await;
                     }
 
                     // Push frame downstream (Python: await self._transport.push_frame(frame))
-                    match transport.push_frame(frame, FrameDirection::Downstream).await {
+                    match transport
+                        .push_frame(frame, FrameDirection::Downstream)
+                        .await
+                    {
                         Ok(_) => {
                             log::debug!("Successfully pushed frame downstream");
                         }
@@ -786,36 +803,592 @@ impl MediaSender {
         log::debug!("Clock task handler finished");
     }
 
-    /// Create audio task for handling audio output
-    async fn audio_task_handler(inner: Arc<Mutex<MediaSenderInner>>) {
-        loop {
-            // Audio task logic - would handle audio buffering and output
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await; // 10ms audio chunks
+    /// Main audio processing task handler (equivalent to Python _audio_task_handler)
+    async fn audio_task_handler(
+        inner: Arc<Mutex<MediaSenderInner>>,
+        audio_queue_rx: mpsc::UnboundedReceiver<FrameType>,
+        transport_weak: std::sync::Weak<BaseOutputTransport>,
+    ) {
+        // Push a BotSpeakingFrame every 200ms, we don't really need to push it
+        // at every audio chunk. If the audio chunk is bigger than 200ms, push at
+        // every audio chunk.
+        let (_total_chunk_ms, bot_speaking_chunk_period) = {
+            let inner_guard = inner.lock().await;
+            let total_chunk_ms = inner_guard.params.audio_out_10ms_chunks * 10;
+            let bot_speaking_chunk_period = std::cmp::max(200 / total_chunk_ms, 1);
+            (total_chunk_ms, bot_speaking_chunk_period)
+        };
 
-            let mut inner_guard = inner.lock().await;
-            if !inner_guard.params.audio_out_enabled {
+        let mut bot_speaking_counter = 0;
+        let mut speech_last_speaking_time = 0.0;
+        const BOT_VAD_STOP_SECS: f64 = 0.35; // TODO: This should be configurable
+
+        // Create frame generator using _next_frame equivalent
+        let mut frame_stream =
+            Self::next_frame(inner.clone(), audio_queue_rx, transport_weak.clone()).await;
+
+        // Main audio processing loop (Python: async for frame in self._next_frame())
+        while let Some(frame) = frame_stream.recv().await {
+            // Check if we should exit on EndFrame
+            if matches!(frame, FrameType::End(_)) {
                 break;
             }
 
-            // Process audio buffer if we have data
-            let audio_chunk_size = inner_guard.audio_chunk_size as usize;
-            if inner_guard.audio_buffer.len() >= audio_chunk_size {
-                let chunk_data = inner_guard
-                    .audio_buffer
-                    .drain(..audio_chunk_size)
-                    .collect::<Vec<_>>();
+            // Notify the bot started speaking upstream if necessary and that it's actually speaking
+            let mut is_speaking = false;
 
-                // Send to audio queue if available
-                if let Some(ref audio_sender) = inner_guard.audio_queue {
-                    let chunk = OutputAudioRawFrame::new(
-                        chunk_data,
-                        inner_guard.sample_rate,
-                        inner_guard.params.audio_out_channels as u16,
-                    );
-                    let _ = audio_sender.send(FrameType::OutputAudioRaw(chunk));
+            match &frame {
+                FrameType::TTSAudioRaw(_) => {
+                    is_speaking = true;
+                }
+                FrameType::SpeechOutputAudioRaw(speech_frame) => {
+                    if !is_silence(&speech_frame.output_audio_frame.audio_frame.audio) {
+                        is_speaking = true;
+                        speech_last_speaking_time = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs_f64();
+                    } else {
+                        let current_time = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs_f64();
+                        let silence_duration = current_time - speech_last_speaking_time;
+                        if silence_duration > BOT_VAD_STOP_SECS {
+                            Self::bot_stopped_speaking(&inner, &transport_weak).await;
+                        }
+                    }
+                }
+                _ => {}
+            }
+
+            if is_speaking {
+                Self::bot_started_speaking(&inner, &transport_weak).await;
+                if bot_speaking_counter % bot_speaking_chunk_period == 0 {
+                    // Push BotSpeakingFrame downstream and upstream
+                    if let Some(transport) = transport_weak.upgrade() {
+                        let destination = {
+                            let inner_guard = inner.lock().await;
+                            inner_guard.destination.clone()
+                        };
+
+                        // Create BotSpeakingFrame instances
+                        let mut downstream_frame = BotSpeakingFrame::new();
+                        downstream_frame.set_transport_destination(destination.clone());
+                        let mut upstream_frame = BotSpeakingFrame::new();
+                        upstream_frame.set_transport_destination(destination.clone());
+
+                        // Push frames downstream and upstream
+                        if let Err(e) = transport
+                            .push_frame(
+                                FrameType::BotSpeaking(downstream_frame),
+                                FrameDirection::Downstream,
+                            )
+                            .await
+                        {
+                            log::error!("Failed to push BotSpeakingFrame downstream: {}", e);
+                        }
+                        if let Err(e) = transport
+                            .push_frame(
+                                FrameType::BotSpeaking(upstream_frame),
+                                FrameDirection::Upstream,
+                            )
+                            .await
+                        {
+                            log::error!("Failed to push BotSpeakingFrame upstream: {}", e);
+                        }
+                    }
+                    bot_speaking_counter = 0;
+                }
+                bot_speaking_counter += 1;
+            }
+
+            // Handle frame processing
+            Self::handle_frame(&inner, &transport_weak, &frame).await;
+
+            // If we are not able to write to the transport we shouldn't push downstream
+            let push_downstream;
+
+            // Try to send audio to the transport
+            if let Some(transport) = transport_weak.upgrade() {
+                match &frame {
+                    FrameType::OutputAudioRaw(audio_frame) => {
+                        match transport.write_audio_frame(audio_frame).await {
+                            Ok(success) => {
+                                push_downstream = success;
+                            }
+                            Err(e) => {
+                                log::error!("Error writing audio frame to transport: {}", e);
+                                push_downstream = false;
+                            }
+                        }
+                    }
+                    _ => {
+                        // For non-audio frames, we can still push them downstream
+                        push_downstream = true;
+                    }
+                }
+
+                // If we were able to send to the transport, push the frame downstream
+                // in case anyone else needs it
+                if push_downstream {
+                    if let Err(e) = transport
+                        .push_frame(frame, FrameDirection::Downstream)
+                        .await
+                    {
+                        log::error!("Failed to push frame downstream: {}", e);
+                    }
+                }
+            } else {
+                log::warn!("Transport reference is no longer valid in audio task");
+                break;
+            }
+        }
+
+        log::debug!("Audio task handler finished");
+    }
+
+    /// Generate the next frame for audio processing (equivalent to Python _next_frame)
+    ///
+    /// Returns a receiver that yields frames, handling timeouts and mixer logic
+    async fn next_frame(
+        inner: Arc<Mutex<MediaSenderInner>>,
+        audio_queue_rx: mpsc::UnboundedReceiver<FrameType>,
+        transport_weak: std::sync::Weak<BaseOutputTransport>,
+    ) -> mpsc::UnboundedReceiver<FrameType> {
+        let (frame_tx, frame_rx) = mpsc::unbounded_channel();
+
+        // Spawn the frame generation task
+        tokio::spawn(async move {
+            const BOT_VAD_STOP_SECS: f64 = 0.35; // TODO: This should be configurable
+
+            // Check if we have a mixer
+            let has_mixer = {
+                let inner_guard = inner.lock().await;
+                inner_guard.audio_mixer.is_some()
+            };
+
+            if has_mixer {
+                // with_mixer implementation
+                Self::with_mixer_frame_generator(
+                    inner,
+                    audio_queue_rx,
+                    transport_weak,
+                    frame_tx,
+                    BOT_VAD_STOP_SECS,
+                )
+                .await;
+            } else {
+                // without_mixer implementation
+                Self::without_mixer_frame_generator(
+                    inner,
+                    audio_queue_rx,
+                    transport_weak,
+                    frame_tx,
+                    BOT_VAD_STOP_SECS,
+                )
+                .await;
+            }
+        });
+
+        frame_rx
+    }
+
+    /// Frame generator without mixer (equivalent to Python without_mixer)
+    async fn without_mixer_frame_generator(
+        inner: Arc<Mutex<MediaSenderInner>>,
+        mut audio_queue_rx: mpsc::UnboundedReceiver<FrameType>,
+        transport_weak: std::sync::Weak<BaseOutputTransport>,
+        frame_tx: mpsc::UnboundedSender<FrameType>,
+        vad_stop_secs: f64,
+    ) {
+        loop {
+            // Try to get frame with timeout (Python: await asyncio.wait_for(self._audio_queue.get(), timeout=vad_stop_secs))
+            let timeout_duration = std::time::Duration::from_secs_f64(vad_stop_secs);
+
+            match tokio::time::timeout(timeout_duration, audio_queue_rx.recv()).await {
+                Ok(Some(frame)) => {
+                    // Got a frame, yield it
+                    if frame_tx.send(frame).is_err() {
+                        break; // Channel closed
+                    }
+                    // Python: self._audio_queue.task_done() - handled automatically by mpsc
+                }
+                Ok(None) => {
+                    // Channel closed
+                    break;
+                }
+                Err(_) => {
+                    // Timeout occurred - notify bot stopped speaking
+                    Self::bot_stopped_speaking(&inner, &transport_weak).await;
                 }
             }
-            drop(inner_guard);
         }
+    }
+
+    /// Frame generator with mixer (equivalent to Python with_mixer)
+    async fn with_mixer_frame_generator(
+        inner: Arc<Mutex<MediaSenderInner>>,
+        mut audio_queue_rx: mpsc::UnboundedReceiver<FrameType>,
+        transport_weak: std::sync::Weak<BaseOutputTransport>,
+        frame_tx: mpsc::UnboundedSender<FrameType>,
+        vad_stop_secs: f64,
+    ) {
+        let mut last_frame_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+
+        loop {
+            // Try to get frame immediately (Python: self._audio_queue.get_nowait())
+            match audio_queue_rx.try_recv() {
+                Ok(frame) => {
+                    // Process frame with mixer if it's an OutputAudioRawFrame
+                    let processed_frame = match &frame {
+                        FrameType::OutputAudioRaw(audio_frame) => {
+                            let mut inner_guard = inner.lock().await;
+                            if let Some(ref mut mixer) = inner_guard.audio_mixer {
+                                // Python: frame.audio = await self._mixer.mix(frame.audio)
+                                match mixer.mix(&audio_frame.audio_frame.audio).await {
+                                    Ok(mixed_audio) => {
+                                        // Create new frame with mixed audio
+                                        let mut new_audio_frame = audio_frame.clone();
+                                        new_audio_frame.audio_frame.audio = mixed_audio;
+                                        FrameType::OutputAudioRaw(new_audio_frame)
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to mix audio: {}", e);
+                                        frame // Use original frame on error
+                                    }
+                                }
+                            } else {
+                                frame
+                            }
+                        }
+                        _ => frame,
+                    };
+
+                    last_frame_time = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs_f64();
+
+                    if frame_tx.send(processed_frame).is_err() {
+                        break; // Channel closed
+                    }
+                    // Python: self._audio_queue.task_done() - handled automatically by mpsc
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    // No frame available - check for VAD timeout
+                    let current_time = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs_f64();
+
+                    let diff_time = current_time - last_frame_time;
+                    if diff_time > vad_stop_secs {
+                        Self::bot_stopped_speaking(&inner, &transport_weak).await;
+                    }
+
+                    // Generate an audio frame with only the mixer's part
+                    let (audio_chunk_size, sample_rate, audio_out_channels) = {
+                        let inner_guard = inner.lock().await;
+                        (
+                            inner_guard.audio_chunk_size as usize,
+                            inner_guard.sample_rate,
+                            inner_guard.params.audio_out_channels,
+                        )
+                    };
+
+                    let silence = vec![0u8; audio_chunk_size];
+                    let mut inner_guard = inner.lock().await;
+                    if let Some(ref mut mixer) = inner_guard.audio_mixer {
+                        match mixer.mix(&silence).await {
+                            Ok(mixed_silence) => {
+                                let frame = OutputAudioRawFrame::new(
+                                    mixed_silence,
+                                    sample_rate,
+                                    audio_out_channels as u16,
+                                );
+                                if frame_tx.send(FrameType::OutputAudioRaw(frame)).is_err() {
+                                    break; // Channel closed
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Failed to mix silence: {}", e);
+                            }
+                        }
+                    }
+
+                    // Allow other asyncio tasks to execute by adding a small sleep
+                    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                }
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    // Channel closed
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Handle bot started speaking event
+    async fn bot_started_speaking(
+        inner: &Arc<Mutex<MediaSenderInner>>,
+        transport_weak: &std::sync::Weak<BaseOutputTransport>,
+    ) {
+        let inner_guard = inner.lock().await;
+        if !inner_guard.bot_speaking {
+            let destination = inner_guard.destination.clone();
+
+            log::debug!(
+                "Bot{} started speaking",
+                if let Some(ref dest) = destination {
+                    format!(" [{}]", dest)
+                } else {
+                    String::new()
+                }
+            );
+
+            drop(inner_guard); // Release lock before async operations
+
+            if let Some(transport) = transport_weak.upgrade() {
+                // Create BotStartedSpeakingFrame instances
+                let mut downstream_frame = BotStartedSpeakingFrame::new();
+                downstream_frame.set_transport_destination(destination.clone());
+                let mut upstream_frame = BotStartedSpeakingFrame::new();
+                upstream_frame.set_transport_destination(destination.clone());
+
+                // Push frames downstream and upstream
+                if let Err(e) = transport
+                    .push_frame(
+                        FrameType::BotStartedSpeaking(downstream_frame),
+                        FrameDirection::Downstream,
+                    )
+                    .await
+                {
+                    log::error!("Failed to push BotStartedSpeakingFrame downstream: {}", e);
+                }
+                if let Err(e) = transport
+                    .push_frame(
+                        FrameType::BotStartedSpeaking(upstream_frame),
+                        FrameDirection::Upstream,
+                    )
+                    .await
+                {
+                    log::error!("Failed to push BotStartedSpeakingFrame upstream: {}", e);
+                }
+            }
+
+            // Set bot_speaking to true at the end, matching Python implementation
+            let mut inner_guard = inner.lock().await;
+            inner_guard.bot_speaking = true;
+        }
+    }
+
+    /// Handle bot stopped speaking event
+    async fn bot_stopped_speaking(
+        inner: &Arc<Mutex<MediaSenderInner>>,
+        transport_weak: &std::sync::Weak<BaseOutputTransport>,
+    ) {
+        let mut inner_guard = inner.lock().await;
+        if inner_guard.bot_speaking {
+            let destination = inner_guard.destination.clone();
+
+            log::debug!(
+                "Bot{} stopped speaking",
+                if let Some(ref dest) = destination {
+                    format!(" [{}]", dest)
+                } else {
+                    String::new()
+                }
+            );
+
+            // Create BotStoppedSpeakingFrame instances
+
+            inner_guard.bot_speaking = false;
+
+            // Clean audio buffer (there could be tiny left overs if not multiple
+            // to our output chunk size).
+            inner_guard.audio_buffer.clear();
+
+            drop(inner_guard); // Release lock before async operations
+
+            if let Some(transport) = transport_weak.upgrade() {
+                // Create BotStoppedSpeakingFrame instances
+                let mut downstream_frame = BotStoppedSpeakingFrame::new();
+                downstream_frame.set_transport_destination(destination.clone());
+                let mut upstream_frame = BotStoppedSpeakingFrame::new();
+                upstream_frame.set_transport_destination(destination.clone());
+
+                // Push frames downstream and upstream
+                if let Err(e) = transport
+                    .push_frame(
+                        FrameType::BotStoppedSpeaking(downstream_frame),
+                        FrameDirection::Downstream,
+                    )
+                    .await
+                {
+                    log::error!("Failed to push BotStoppedSpeakingFrame downstream: {}", e);
+                }
+                if let Err(e) = transport
+                    .push_frame(
+                        FrameType::BotStoppedSpeaking(upstream_frame),
+                        FrameDirection::Upstream,
+                    )
+                    .await
+                {
+                    log::error!("Failed to push BotStoppedSpeakingFrame upstream: {}", e);
+                }
+            }
+        }
+    }
+
+    /// Handle frame processing (equivalent to Python _handle_frame)
+    async fn handle_frame(
+        inner: &Arc<Mutex<MediaSenderInner>>,
+        transport_weak: &std::sync::Weak<BaseOutputTransport>,
+        frame: &FrameType,
+    ) {
+        // Handle various frame types with appropriate processing (only specific types from Python)
+        match frame {
+            FrameType::OutputImageRaw(image_frame) => {
+                // Set single video image (Python: await self._set_video_image(frame))
+                let mut inner_guard = inner.lock().await;
+                inner_guard.video_images = Some(vec![image_frame.clone()].into_iter().cycle());
+                log::debug!("Set video image from OutputImageRaw frame");
+            }
+            FrameType::Sprite(sprite_frame) => {
+                // Set multiple video images (Python: await self._set_video_images(frame.images))
+                let mut inner_guard = inner.lock().await;
+                inner_guard.video_images = Some(sprite_frame.images.clone().into_iter().cycle());
+                log::debug!(
+                    "Set video images from Sprite frame with {} images",
+                    sprite_frame.images.len()
+                );
+            }
+            FrameType::TransportMessage(message_frame) => {
+                // Send transport message (Python: await self._transport.send_message(frame))
+                if let Some(transport) = transport_weak.upgrade() {
+                    let frame_type = TransportMessageFrameType::Message(message_frame.clone());
+                    let _ = transport.send_message(frame_type).await;
+                    log::debug!("Sent TransportMessage frame");
+                } else {
+                    log::warn!("Transport not available for TransportMessage");
+                }
+            }
+            FrameType::TransportMessageUrgent(urgent_frame) => {
+                // Send urgent transport message (Python: await self._transport.send_message(frame))
+                if let Some(transport) = transport_weak.upgrade() {
+                    let frame_type = TransportMessageFrameType::Urgent(urgent_frame.clone());
+                    let _ = transport.send_message(frame_type).await;
+                    log::debug!("Sent TransportMessageUrgent frame");
+                } else {
+                    log::warn!("Transport not available for TransportMessageUrgent");
+                }
+            }
+            _ => {
+                // Do nothing for other frame types - only handle the specific types from Python
+            }
+        }
+    }
+
+    /// Handle TTS audio frames by sending to audio queue
+    pub async fn handle_tts_audio_frame(
+        &self,
+        frame: &crate::frames::TTSAudioRawFrame,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let inner_guard = self.inner.lock().await;
+
+        if inner_guard.params.audio_out_enabled {
+            // Send frame to audio queue if available
+            if let Some(ref audio_sender) = inner_guard.audio_queue {
+                let _ = audio_sender.send(FrameType::TTSAudioRaw(frame.clone()));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handle speech output audio frames by sending to audio queue
+    pub async fn handle_speech_audio_frame(
+        &self,
+        frame: &crate::frames::SpeechOutputAudioRawFrame,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let inner_guard = self.inner.lock().await;
+
+        if inner_guard.params.audio_out_enabled {
+            // Send frame to audio queue if available
+            if let Some(ref audio_sender) = inner_guard.audio_queue {
+                let _ = audio_sender.send(FrameType::SpeechOutputAudioRaw(frame.clone()));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Route frames to appropriate handlers based on frame type (equivalent to Python _handle_frame)
+    ///
+    /// This is the main frame routing function that determines how to process different frame types
+    pub async fn route_frame(
+        &self,
+        frame: FrameType,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Route frame based on type to appropriate handler
+        match &frame {
+            FrameType::OutputAudioRaw(audio_frame) => {
+                self.handle_audio_frame(audio_frame).await?;
+            }
+            FrameType::OutputImageRaw(image_frame) => {
+                self.handle_image_frame(image_frame).await?;
+            }
+            FrameType::Sprite(sprite_frame) => {
+                self.handle_sprite_frame(sprite_frame).await?;
+            }
+            FrameType::TTSAudioRaw(tts_frame) => {
+                self.handle_tts_audio_frame(tts_frame).await?;
+            }
+            FrameType::SpeechOutputAudioRaw(speech_frame) => {
+                self.handle_speech_audio_frame(speech_frame).await?;
+            }
+            // Handle interruption frames
+            _ if self.is_interruption_frame(&frame) => {
+                self.handle_interruptions(frame).await?;
+            }
+            // Handle mixer control frames
+            _ if self.is_mixer_control_frame(&frame) => {
+                self.handle_mixer_control_frame(frame).await?;
+            }
+            // Handle frames with presentation timestamps
+            _ if self.has_pts(&frame) => {
+                self.handle_timed_frame(frame).await?;
+            }
+            // Handle other frames as sync frames
+            _ => {
+                self.handle_sync_frame(frame).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check if frame is an interruption frame
+    fn is_interruption_frame(&self, _frame: &FrameType) -> bool {
+        // TODO: Implement interruption frame detection
+        // This would check for InterruptionFrame type when it's available
+        false
+    }
+
+    /// Check if frame is a mixer control frame
+    fn is_mixer_control_frame(&self, _frame: &FrameType) -> bool {
+        // TODO: Implement mixer control frame detection
+        // This would check for MixerControlFrame type when it's available
+        false
+    }
+
+    /// Check if frame has presentation timestamp (pts)
+    fn has_pts(&self, _frame: &FrameType) -> bool {
+        // TODO: Implement PTS checking based on frame structure
+        // This would check if the frame has timing information
+        false
     }
 }
