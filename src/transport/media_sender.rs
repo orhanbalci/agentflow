@@ -13,7 +13,7 @@ use crate::audio::resampler::{BaseAudioResampler, RubatoAudioResampler};
 use crate::frames::{
     EndFrame, FrameType, OutputAudioRawFrame, OutputImageRawFrame, SpriteFrame, StartFrame,
 };
-use crate::processors::frame::FrameProcessorInterface;
+use crate::processors::frame::{FrameDirection, FrameProcessorInterface};
 use crate::task_manager::TaskHandle;
 use crate::transport::output::BaseOutputTransport;
 use crate::transport::params::TransportParams;
@@ -297,10 +297,17 @@ impl MediaSender {
     /// Handle frames with presentation timestamps
     pub async fn handle_timed_frame(
         &self,
-        _frame: FrameType,
+        frame: FrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // In the task-based approach, timed frames would be handled by the tasks themselves
-        log::debug!("Handling timed frame");
+        // Extract timestamp from frame and send to clock queue for timed delivery
+        // TODO: We need to add timestamp extraction logic based on frame type
+        // For now, use current time + some offset as placeholder
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+            
+        self.send_timed_frame(timestamp, frame).await?;
         Ok(())
     }
 
@@ -324,6 +331,21 @@ impl MediaSender {
     pub async fn set_video_images(&self, images: Vec<OutputImageRawFrame>) {
         let mut inner_guard = self.inner.lock().await;
         inner_guard.video_images = Some(images.into_iter().cycle());
+    }
+
+    /// Send a timed frame to the clock queue for scheduled delivery
+    /// This is equivalent to putting frames into the Python _clock_queue
+    pub async fn send_timed_frame(&self, timestamp: u64, frame: FrameType) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let inner_guard = self.inner.lock().await;
+        
+        if let Some(ref clock_sender) = inner_guard.clock_queue {
+            // Use timestamp as priority (earlier timestamps have higher priority)
+            let priority = timestamp;
+            clock_sender.send((timestamp, priority, frame))
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        }
+        
+        Ok(())
     }
 
     /// Create the video processing task if video output is enabled
@@ -361,13 +383,16 @@ impl MediaSender {
         inner_guard: &mut MediaSenderInner,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if !inner_guard.clock_task.is_some() {
-            let (clock_queue_tx, _clock_queue_rx) = mpsc::unbounded_channel();
+            let (clock_queue_tx, clock_queue_rx) = mpsc::unbounded_channel();
             inner_guard.clock_queue = Some(clock_queue_tx);
 
             let inner_clone = Arc::clone(&self.inner);
+            let transport_weak = Arc::downgrade(transport);
             let clock_task = transport
                 .create_task(
-                    move |_ctx| async move { Self::clock_task_handler(inner_clone).await },
+                    move |_ctx| async move { 
+                        Self::clock_task_handler(inner_clone, clock_queue_rx, transport_weak).await 
+                    },
                     Some(format!("ClockTask-{:?}", inner_guard.destination)),
                 )
                 .await
@@ -695,21 +720,70 @@ impl MediaSender {
         ))
     }
 
-    /// Create clock task for handling timing synchronization
-    async fn clock_task_handler(inner: Arc<Mutex<MediaSenderInner>>) {
-        loop {
-            // Clock task logic - would handle timing synchronization
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    /// Main clock/timing task handler for timed frame delivery (equivalent to Python _clock_task_handler)
+    async fn clock_task_handler(
+        _inner: Arc<Mutex<MediaSenderInner>>,
+        mut clock_queue_rx: mpsc::UnboundedReceiver<(u64, u64, FrameType)>,
+        transport_weak: std::sync::Weak<BaseOutputTransport>,
+    ) {
+        let mut running = true;
+        
+        while running {
+            // Get timed frame from clock queue (Python: timestamp, _, frame = await self._clock_queue.get())
+            let (timestamp, _priority, frame) = match clock_queue_rx.recv().await {
+                Some(timed_frame) => timed_frame,
+                None => {
+                    // Channel closed, exit
+                    break;
+                }
+            };
 
-            let inner_guard = inner.lock().await;
-            if !inner_guard.params.audio_out_enabled && !inner_guard.params.video_out_enabled {
-                break;
+            // Check if we hit an EndFrame (Python: running = not isinstance(frame, EndFrame))
+            running = !matches!(frame, FrameType::End(_));
+
+            if running {
+                // Get current time from transport clock
+                if let Some(transport) = transport_weak.upgrade() {
+                    // Get the current time from transport clock (Python: self._transport.get_clock().get_time())
+                    let current_time = match transport.get_clock().await.get_time() {
+                        Ok(time) => time,
+                        Err(e) => {
+                            log::error!("Failed to get clock time: {:?}", e);
+                            // Fall back to system time
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_nanos() as u64
+                        }
+                    };
+
+                    // If timestamp is in the future, wait until it's time to process
+                    if timestamp > current_time {
+                        let wait_time_nanos = timestamp - current_time;
+                        let wait_time_secs = wait_time_nanos as f64 / 1_000_000_000.0;
+                        tokio::time::sleep(std::time::Duration::from_secs_f64(wait_time_secs)).await;
+                    }
+
+                    // Push frame downstream (Python: await self._transport.push_frame(frame))
+                    match transport.push_frame(frame, FrameDirection::Downstream).await {
+                        Ok(_) => {
+                            log::debug!("Successfully pushed frame downstream");
+                        }
+                        Err(e) => {
+                            log::error!("Failed to push frame downstream: {}", e);
+                        }
+                    }
+                } else {
+                    log::warn!("Transport reference is no longer valid in clock task");
+                    break;
+                }
             }
 
-            // Clock synchronization logic would go here
-            // This would typically sync with the transport's clock
-            drop(inner_guard);
+            // Mark task as done (Python: self._clock_queue.task_done())
+            // In our mpsc implementation, this is handled automatically when the loop continues
         }
+
+        log::debug!("Clock task handler finished");
     }
 
     /// Create audio task for handling audio output
