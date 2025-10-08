@@ -164,7 +164,8 @@ impl BaseOutputTransport {
         // Cancel all media senders
         for (destination, sender) in inner.media_senders.iter_mut() {
             log::debug!("Cancelling destination: {:?}", destination);
-            sender.cancel().await?;
+            let cancel_frame = crate::frames::CancelFrame::new();
+            sender.cancel(&cancel_frame).await?;
         }
 
         // Clear the senders map immediately on cancel
@@ -470,8 +471,8 @@ impl BaseOutputTransport {
         drop(inner); // Release the lock early
 
         // Get the media sender for this destination
-        let inner = self.inner.lock().await;
-        let sender = inner.media_senders.get(&transport_destination);
+        let mut inner = self.inner.lock().await;
+        let sender = inner.media_senders.get_mut(&transport_destination);
 
         if let Some(sender) = sender {
             // Route frame to appropriate handler based on frame type (following Python pattern)
@@ -514,14 +515,18 @@ impl BaseOutputTransport {
                         "Handling image frame for destination: {:?}",
                         transport_destination
                     );
-                    sender.handle_image_frame(&image_frame).await?;
+                    sender
+                        .handle_image_frame(FrameType::OutputImageRaw(image_frame.clone()))
+                        .await?;
                 }
                 FrameType::Sprite(sprite_frame) => {
                     log::debug!(
                         "Handling sprite frame for destination: {:?}",
                         transport_destination
                     );
-                    sender.handle_sprite_frame(&sprite_frame).await?;
+                    sender
+                        .handle_image_frame(FrameType::Sprite(sprite_frame.clone()))
+                        .await?;
                 }
                 // Mixer control frames (when available)
                 // FrameType::MixerControl(mixer_frame) => {

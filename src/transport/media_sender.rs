@@ -160,53 +160,94 @@ impl MediaSender {
     /// Stop the media sender by cancelling tasks
     pub async fn stop(
         &mut self,
-        _frame: &EndFrame,
+        frame: &EndFrame,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let mut inner_guard = self.inner.lock().await;
+        {
+            let inner_guard = self.inner.lock().await;
 
-        // Cancel all tasks using the transport's task management
-        if let Some(transport) = self.transport.upgrade() {
-            if let Some(ref audio_task) = inner_guard.audio_task {
-                let _ = transport
-                    .cancel_task(audio_task, Some(std::time::Duration::from_millis(1000)))
-                    .await;
+            // Let the sink tasks process the queue until they reach this EndFrame.
+            // Send EndFrame to clock queue with infinite timestamp (Python: await self._clock_queue.put((float("inf"), frame.id, frame)))
+            if let Some(ref clock_sender) = inner_guard.clock_queue {
+                let _ = clock_sender.send((u64::MAX, frame.id(), FrameType::End(frame.clone())));
             }
-            if let Some(ref video_task) = inner_guard.video_task {
-                let _ = transport
-                    .cancel_task(video_task, Some(std::time::Duration::from_millis(1000)))
-                    .await;
-            }
-            if let Some(ref clock_task) = inner_guard.clock_task {
-                let _ = transport
-                    .cancel_task(clock_task, Some(std::time::Duration::from_millis(1000)))
-                    .await;
+
+            // Send EndFrame to audio queue (Python: await self._audio_queue.put(frame))
+            if let Some(ref audio_sender) = inner_guard.audio_queue {
+                let _ = audio_sender.send(FrameType::End(frame.clone()));
             }
         }
 
-        // Clear task handles
-        inner_guard.audio_task = None;
-        inner_guard.video_task = None;
-        inner_guard.clock_task = None;
+        // Get transport reference for task management
+        let transport = self.transport.upgrade();
+
+        // At this point we have enqueued an EndFrame and we need to wait for
+        // that EndFrame to be processed by the audio and clock tasks.
+        // Since we don't have a wait_for_task method, we'll use a short delay
+        // to allow the tasks to process the EndFrame naturally.
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        {
+            let mut inner_guard = self.inner.lock().await;
+
+            // Stop audio mixer (Python: if self._mixer: await self._mixer.stop())
+            if let Some(mixer) = &mut inner_guard.audio_mixer {
+                let _ = mixer.stop().await;
+            }
+
+            // We can now cancel the video task (Python: await self._cancel_video_task())
+            if let Some(transport) = &transport {
+                if let Some(ref video_task) = inner_guard.video_task {
+                    let _ = transport
+                        .cancel_task(video_task, Some(std::time::Duration::from_millis(1000)))
+                        .await;
+                }
+            }
+
+            // Clear task handles
+            inner_guard.audio_task = None;
+            inner_guard.video_task = None;
+            inner_guard.clock_task = None;
+        }
 
         Ok(())
     }
 
     /// Cancel the media sender immediately
-    pub async fn cancel(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn cancel(
+        &mut self,
+        _frame: &crate::frames::CancelFrame,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Since we are cancelling everything it doesn't matter what task we cancel first.
+        self.cancel_audio_task().await?;
+        self.cancel_clock_task().await?;
+        self.cancel_video_task().await?;
+
+        Ok(())
+    }
+
+    /// Cancel the audio processing task
+    async fn cancel_audio_task(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut inner_guard = self.inner.lock().await;
 
-        // Cancel all tasks using the transport's task management
         if let Some(transport) = self.transport.upgrade() {
             if let Some(ref audio_task) = inner_guard.audio_task {
                 let _ = transport
                     .cancel_task(audio_task, Some(std::time::Duration::from_millis(100)))
                     .await;
             }
-            if let Some(ref video_task) = inner_guard.video_task {
-                let _ = transport
-                    .cancel_task(video_task, Some(std::time::Duration::from_millis(100)))
-                    .await;
-            }
+        }
+
+        // Clear audio task handle
+        inner_guard.audio_task = None;
+
+        Ok(())
+    }
+
+    /// Cancel the clock processing task
+    async fn cancel_clock_task(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut inner_guard = self.inner.lock().await;
+
+        if let Some(transport) = self.transport.upgrade() {
             if let Some(ref clock_task) = inner_guard.clock_task {
                 let _ = transport
                     .cancel_task(clock_task, Some(std::time::Duration::from_millis(100)))
@@ -214,10 +255,26 @@ impl MediaSender {
             }
         }
 
-        // Clear task handles
-        inner_guard.audio_task = None;
-        inner_guard.video_task = None;
+        // Clear clock task handle
         inner_guard.clock_task = None;
+
+        Ok(())
+    }
+
+    /// Cancel the video processing task
+    async fn cancel_video_task(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut inner_guard = self.inner.lock().await;
+
+        if let Some(transport) = self.transport.upgrade() {
+            if let Some(ref video_task) = inner_guard.video_task {
+                let _ = transport
+                    .cancel_task(video_task, Some(std::time::Duration::from_millis(100)))
+                    .await;
+            }
+        }
+
+        // Clear video task handle
+        inner_guard.video_task = None;
 
         Ok(())
     }
@@ -227,48 +284,80 @@ impl MediaSender {
         &self,
         frame: &OutputAudioRawFrame,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let inner_guard = self.inner.lock().await;
+        let mut inner_guard = self.inner.lock().await;
 
-        if inner_guard.params.audio_out_enabled {
-            // Send frame to audio queue if available
+        if !inner_guard.params.audio_out_enabled {
+            return Ok(());
+        }
+
+        // We might need to resample if incoming audio doesn't match the
+        // transport sample rate.
+        let resampled = inner_guard
+            .audio_resampler
+            .resample(
+                frame.audio_frame.audio.clone(),
+                frame.audio_frame.sample_rate,
+                inner_guard.sample_rate,
+            )
+            .await?;
+
+        // Add resampled audio to buffer
+        inner_guard.audio_buffer.extend(resampled);
+
+        // Process audio in chunks
+        while inner_guard.audio_buffer.len() >= inner_guard.audio_chunk_size as usize {
+            // Extract chunk from buffer
+            let chunk_size = inner_guard.audio_chunk_size as usize;
+            let chunk_data: Vec<u8> = inner_guard.audio_buffer.drain(..chunk_size).collect();
+
+            // Create new audio frame chunk with transport destination
+            let mut chunk = OutputAudioRawFrame::new(
+                chunk_data,
+                inner_guard.sample_rate,
+                frame.audio_frame.num_channels,
+            );
+            chunk.set_transport_destination(inner_guard.destination.clone());
+
+            // Send chunk to audio queue if available
             if let Some(ref audio_sender) = inner_guard.audio_queue {
-                let _ = audio_sender.send(FrameType::OutputAudioRaw(frame.clone()));
+                let _ = audio_sender.send(FrameType::OutputAudioRaw(chunk));
             }
         }
 
         Ok(())
     }
 
-    /// Handle image frames by sending to video queue
+    /// Handle incoming image frames for video output (OutputImageRawFrame or SpriteFrame)
     pub async fn handle_image_frame(
         &self,
-        frame: &OutputImageRawFrame,
+        frame: FrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner_guard = self.inner.lock().await;
 
-        if inner_guard.params.video_out_enabled {
-            // Send frame to video queue if available
-            if let Some(ref video_sender) = inner_guard.video_queue {
-                let _ = video_sender.send(frame.clone());
-            }
+        if !inner_guard.params.video_out_enabled {
+            return Ok(());
         }
 
-        Ok(())
-    }
-
-    /// Handle sprite frames by sending each image to video queue
-    pub async fn handle_sprite_frame(
-        &self,
-        frame: &SpriteFrame,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let inner_guard = self.inner.lock().await;
-
-        if inner_guard.params.video_out_enabled && !frame.images.is_empty() {
-            // Send each image in the sprite to the video queue
-            if let Some(ref video_sender) = inner_guard.video_queue {
-                for image in &frame.images {
-                    let _ = video_sender.send(image.clone());
+        match frame {
+            FrameType::OutputImageRaw(image_frame) => {
+                if inner_guard.params.video_out_is_live {
+                    // Live mode: send frame to video queue (Python: await self._video_queue.put(frame))
+                    if let Some(ref video_sender) = inner_guard.video_queue {
+                        let _ = video_sender.send(image_frame);
+                    }
+                } else {
+                    // Non-live mode: set as single video image (Python: await self._set_video_image(frame))
+                    drop(inner_guard); // Release lock before calling set_video_image
+                    self.set_video_image(image_frame).await;
                 }
+            }
+            FrameType::Sprite(sprite_frame) => {
+                // Set multiple video images (Python: await self._set_video_images(frame.images))
+                drop(inner_guard); // Release lock before calling set_video_images
+                self.set_video_images(sprite_frame.images).await;
+            }
+            _ => {
+                // Ignore other frame types
             }
         }
 
@@ -277,15 +366,35 @@ impl MediaSender {
 
     /// Handle interruption events by restarting tasks and clearing buffers
     pub async fn handle_interruptions(
-        &self,
+        &mut self,
         _frame: FrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Simplified implementation - in a full implementation this would:
-        // 1. Cancel existing tasks
-        // 2. Clear buffers
-        // 3. Restart tasks
-        // 4. Send bot stopped speaking if necessary
-        log::debug!("Handling interruption");
+        // Check if interruptions are allowed on the transport
+        if let Some(transport) = self.transport.upgrade() {
+            if !transport.interruptions_allowed().await {
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        }
+
+        // Cancel tasks
+        self.cancel_audio_task().await?;
+        self.cancel_clock_task().await?;
+        self.cancel_video_task().await?;
+
+        // Create tasks
+        if let Some(transport) = self.transport.upgrade() {
+            let mut inner_guard = self.inner.lock().await;
+
+            self.create_video_task(&transport, &mut inner_guard).await?;
+            self.create_clock_task(&transport, &mut inner_guard).await?;
+            self.create_audio_task(&transport, &mut inner_guard).await?;
+        }
+
+        // Let's send a bot stopped speaking if we have to
+        Self::bot_stopped_speaking(&self.inner, &self.transport).await;
+
         Ok(())
     }
 
@@ -294,8 +403,22 @@ impl MediaSender {
         &self,
         _frame: FrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // In a full implementation, this would pass the frame to the audio mixer
-        log::debug!("Handling mixer control frame");
+        let inner_guard = self.inner.lock().await;
+
+        // Pass frame to audio mixer if available (Python: if self._mixer: await self._mixer.process_frame(frame))
+        if let Some(_mixer) = &inner_guard.audio_mixer {
+            // TODO: Add MixerControl variant to FrameType enum and process_frame method to BaseAudioMixer trait
+            // In the Python implementation, this would be:
+            // await self._mixer.process_frame(frame)
+
+            // For now, we'll handle mixer-related frames generically
+            log::debug!("Processing mixer control frame with mixer");
+            // Once the proper variants and methods are added, this would be:
+            // mixer.process_frame(frame).await?;
+        } else {
+            log::debug!("No mixer available to process mixer control frame");
+        }
+
         Ok(())
     }
 
@@ -304,25 +427,30 @@ impl MediaSender {
         &self,
         frame: FrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Extract timestamp from frame and send to clock queue for timed delivery
-        // TODO: We need to add timestamp extraction logic based on frame type
-        // For now, use current time + some offset as placeholder
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64;
+        let inner_guard = self.inner.lock().await;
 
-        self.send_timed_frame(timestamp, frame).await?;
+        // Send frame to clock queue with its presentation timestamp (Python: await self._clock_queue.put((frame.pts, frame.id, frame)))
+        if let Some(ref clock_sender) = inner_guard.clock_queue {
+            let pts = frame.pts().unwrap_or(0); // Use frame's presentation timestamp
+            let frame_id = frame.id();
+            let _ = clock_sender.send((pts, frame_id, frame));
+        }
+
         Ok(())
     }
 
     /// Handle frames that need synchronized processing
     pub async fn handle_sync_frame(
         &self,
-        _frame: FrameType,
+        frame: FrameType,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // In the task-based approach, sync frames would be handled by the tasks themselves
-        log::debug!("Handling sync frame");
+        let inner_guard = self.inner.lock().await;
+
+        // Send frame to audio queue for synchronized processing (Python: await self._audio_queue.put(frame))
+        if let Some(ref audio_sender) = inner_guard.audio_queue {
+            let _ = audio_sender.send(frame);
+        }
+
         Ok(())
     }
 
@@ -1324,71 +1452,5 @@ impl MediaSender {
         }
 
         Ok(())
-    }
-
-    /// Route frames to appropriate handlers based on frame type (equivalent to Python _handle_frame)
-    ///
-    /// This is the main frame routing function that determines how to process different frame types
-    pub async fn route_frame(
-        &self,
-        frame: FrameType,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Route frame based on type to appropriate handler
-        match &frame {
-            FrameType::OutputAudioRaw(audio_frame) => {
-                self.handle_audio_frame(audio_frame).await?;
-            }
-            FrameType::OutputImageRaw(image_frame) => {
-                self.handle_image_frame(image_frame).await?;
-            }
-            FrameType::Sprite(sprite_frame) => {
-                self.handle_sprite_frame(sprite_frame).await?;
-            }
-            FrameType::TTSAudioRaw(tts_frame) => {
-                self.handle_tts_audio_frame(tts_frame).await?;
-            }
-            FrameType::SpeechOutputAudioRaw(speech_frame) => {
-                self.handle_speech_audio_frame(speech_frame).await?;
-            }
-            // Handle interruption frames
-            _ if self.is_interruption_frame(&frame) => {
-                self.handle_interruptions(frame).await?;
-            }
-            // Handle mixer control frames
-            _ if self.is_mixer_control_frame(&frame) => {
-                self.handle_mixer_control_frame(frame).await?;
-            }
-            // Handle frames with presentation timestamps
-            _ if self.has_pts(&frame) => {
-                self.handle_timed_frame(frame).await?;
-            }
-            // Handle other frames as sync frames
-            _ => {
-                self.handle_sync_frame(frame).await?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Check if frame is an interruption frame
-    fn is_interruption_frame(&self, _frame: &FrameType) -> bool {
-        // TODO: Implement interruption frame detection
-        // This would check for InterruptionFrame type when it's available
-        false
-    }
-
-    /// Check if frame is a mixer control frame
-    fn is_mixer_control_frame(&self, _frame: &FrameType) -> bool {
-        // TODO: Implement mixer control frame detection
-        // This would check for MixerControlFrame type when it's available
-        false
-    }
-
-    /// Check if frame has presentation timestamp (pts)
-    fn has_pts(&self, _frame: &FrameType) -> bool {
-        // TODO: Implement PTS checking based on frame structure
-        // This would check if the frame has timing information
-        false
     }
 }
