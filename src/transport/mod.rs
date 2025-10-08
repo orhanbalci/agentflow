@@ -16,11 +16,13 @@
 
 pub mod base;
 pub mod input;
+pub mod media_sender;
 pub mod output;
 pub mod params;
 
 // Re-export commonly used types for convenience
 pub use base::{BaseTransport, BaseTransportBuilder, BaseTransportImpl};
 pub use input::BaseInputTransport;
+pub use media_sender::{MediaSender, MediaSenderInner};
 pub use output::BaseOutputTransport;
 pub use params::{AudioFilterHandle, AudioMixerConfig, TransportParams};
