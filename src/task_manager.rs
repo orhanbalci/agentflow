@@ -182,7 +182,7 @@ impl TaskManager {
         Ok(TaskHandle {
             id: task_id,
             name,
-            manager: Arc::clone(&self.tasks),
+            _manager: Arc::clone(&self.tasks),
         })
     }
 
@@ -345,7 +345,7 @@ impl TaskContext {
 pub struct TaskHandle {
     pub id: Uuid,
     pub name: String,
-    manager: Arc<RwLock<HashMap<Uuid, TaskData>>>,
+    _manager: Arc<RwLock<HashMap<Uuid, TaskData>>>,
 }
 
 #[derive(Debug, Clone)]

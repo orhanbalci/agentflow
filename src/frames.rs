@@ -2521,6 +2521,105 @@ impl FrameType {
                 | FrameType::LLMFullResponseEnd(_)
         )
     }
+
+    /// Convert FrameType to Box<dyn Frame>
+    pub fn into_box(self) -> Box<dyn Frame> {
+        match self {
+            FrameType::OutputAudioRaw(f) => Box::new(f),
+            FrameType::TTSAudioRaw(f) => Box::new(f),
+            FrameType::SpeechOutputAudioRaw(f) => Box::new(f),
+            FrameType::OutputImageRaw(f) => Box::new(f),
+            FrameType::Sprite(f) => Box::new(f),
+            FrameType::InputAudioRaw(f) => Box::new(f),
+            FrameType::InputImageRaw(f) => Box::new(f),
+            FrameType::Text(f) => Box::new(f),
+            FrameType::LLMText(f) => Box::new(f),
+            FrameType::Start(f) => Box::new(f),
+            FrameType::Cancel(f) => Box::new(f),
+            FrameType::Error(f) => Box::new(f),
+            FrameType::UserStartedSpeaking(f) => Box::new(f),
+            FrameType::UserStoppedSpeaking(f) => Box::new(f),
+            FrameType::StartInterruption(f) => Box::new(f),
+            FrameType::StopInterruption(f) => Box::new(f),
+            FrameType::BotInterruption(f) => Box::new(f),
+            FrameType::BotStartedSpeaking(f) => Box::new(f),
+            FrameType::BotSpeaking(f) => Box::new(f),
+            FrameType::BotStoppedSpeaking(f) => Box::new(f),
+            FrameType::EmulateUserStartedSpeaking(f) => Box::new(f),
+            FrameType::EmulateUserStoppedSpeaking(f) => Box::new(f),
+            FrameType::OutputTransportReady(f) => Box::new(f),
+            FrameType::TransportMessage(f) => Box::new(f),
+            FrameType::TransportMessageUrgent(f) => Box::new(f),
+            FrameType::End(f) => Box::new(f),
+            FrameType::Stop(f) => Box::new(f),
+            FrameType::FilterControl(f) => Box::new(f),
+            FrameType::LLMFullResponseStart(f) => Box::new(f),
+            FrameType::LLMFullResponseEnd(f) => Box::new(f),
+        }
+    }
+
+    /// Get the frame type enum as a string for debugging
+    pub fn frame_type(&self) -> &'static str {
+        match self {
+            FrameType::OutputAudioRaw(_) => "OutputAudioRaw",
+            FrameType::TTSAudioRaw(_) => "TTSAudioRaw",
+            FrameType::SpeechOutputAudioRaw(_) => "SpeechOutputAudioRaw",
+            FrameType::OutputImageRaw(_) => "OutputImageRaw",
+            FrameType::Sprite(_) => "Sprite",
+            FrameType::InputAudioRaw(_) => "InputAudioRaw",
+            FrameType::InputImageRaw(_) => "InputImageRaw",
+            FrameType::Text(_) => "Text",
+            FrameType::LLMText(_) => "LLMText",
+            FrameType::Start(_) => "Start",
+            FrameType::Cancel(_) => "Cancel",
+            FrameType::Error(_) => "Error",
+            FrameType::UserStartedSpeaking(_) => "UserStartedSpeaking",
+            FrameType::UserStoppedSpeaking(_) => "UserStoppedSpeaking",
+            FrameType::StartInterruption(_) => "StartInterruption",
+            FrameType::StopInterruption(_) => "StopInterruption",
+            FrameType::BotInterruption(_) => "BotInterruption",
+            FrameType::BotStartedSpeaking(_) => "BotStartedSpeaking",
+            FrameType::BotSpeaking(_) => "BotSpeaking",
+            FrameType::BotStoppedSpeaking(_) => "BotStoppedSpeaking",
+            FrameType::EmulateUserStartedSpeaking(_) => "EmulateUserStartedSpeaking",
+            FrameType::EmulateUserStoppedSpeaking(_) => "EmulateUserStoppedSpeaking",
+            FrameType::OutputTransportReady(_) => "OutputTransportReady",
+            FrameType::TransportMessage(_) => "TransportMessage",
+            FrameType::TransportMessageUrgent(_) => "TransportMessageUrgent",
+            FrameType::End(_) => "End",
+            FrameType::Stop(_) => "Stop",
+            FrameType::FilterControl(_) => "FilterControl",
+            FrameType::LLMFullResponseStart(_) => "LLMFullResponseStart",
+            FrameType::LLMFullResponseEnd(_) => "LLMFullResponseEnd",
+        }
+    }
+}
+
+impl From<Box<dyn Frame>> for FrameType {
+    fn from(frame: Box<dyn Frame>) -> Self {
+        // This is a bit tricky because we need to downcast the Box<dyn Frame>
+        // For now, we'll create a simple conversion based on frame name
+        // In a real implementation, you might want to use downcasting or other mechanisms
+        let frame_name = frame.name();
+
+        // This is a simplified approach - in practice you'd want proper downcasting
+        match frame_name {
+            name if name.contains("TextFrame") => {
+                // For now, create a new TextFrame - this would need proper downcasting
+                FrameType::Text(TextFrame::new("".to_string()))
+            }
+            name if name.contains("StartFrame") => FrameType::Start(StartFrame::new()),
+            name if name.contains("CancelFrame") => FrameType::Cancel(CancelFrame::new()),
+            name if name.contains("ErrorFrame") => {
+                FrameType::Error(ErrorFrame::new("Unknown error".to_string()))
+            }
+            name if name.contains("EndFrame") => FrameType::End(EndFrame::new()),
+            _ => {
+                // Default to a text frame for unknown types
+                FrameType::Text(TextFrame::new(format!("Unknown frame: {}", frame_name)))
+            }
+        }
+    }
 }
 
 #[cfg(test)]

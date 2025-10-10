@@ -342,36 +342,9 @@ impl BaseInputTransport {
             }
         }
     }
-}
-
-#[async_trait]
-impl FrameProcessorTrait for BaseInputTransport {
-    // Use delegate macro for all sync methods
-    delegate! {
-        to self.frame_processor {
-            fn id(&self) -> u64;
-            fn is_started(&self) -> bool;
-            fn is_cancelling(&self) -> bool;
-            fn set_allow_interruptions(&mut self, allow: bool);
-            fn set_enable_metrics(&mut self, enable: bool);
-            fn set_enable_usage_metrics(&mut self, enable: bool);
-            fn set_report_only_initial_ttfb(&mut self, report: bool);
-            fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
-            fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
-            fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>);
-            fn clear_processors(&mut self);
-            fn is_compound_processor(&self) -> bool;
-            fn processor_count(&self) -> usize;
-            fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>>;
-            fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>>;
-            fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
-            fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
-            fn name(&self) -> &str;
-        }
-    }
 
     // Async methods - delegate to frame_processor
-    async fn create_task<F, Fut>(
+    pub async fn create_task<F, Fut>(
         &self,
         future: F,
         name: Option<String>,
@@ -381,6 +354,34 @@ impl FrameProcessorTrait for BaseInputTransport {
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         self.frame_processor.create_task(future, name).await
+    }
+}
+
+#[async_trait]
+impl FrameProcessorTrait for BaseInputTransport {
+    // Use delegate macro for all sync methods
+    delegate! {
+        to self.frame_processor {
+            fn can_generate_metrics(&self) -> bool;
+            fn id(&self) -> u64;
+            fn is_started(&self) -> bool;
+            fn is_cancelling(&self) -> bool;
+            fn set_allow_interruptions(&mut self, allow: bool);
+            fn set_enable_metrics(&mut self, enable: bool);
+            fn set_enable_usage_metrics(&mut self, enable: bool);
+            fn set_report_only_initial_ttfb(&mut self, report: bool);
+            fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
+            fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
+            fn add_processor(&mut self, processor: Arc<Mutex<dyn FrameProcessorTrait>>);
+            fn clear_processors(&mut self);
+            fn is_compound_processor(&self) -> bool;
+            fn processor_count(&self) -> usize;
+            fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<dyn FrameProcessorTrait>>>;
+            fn processors(&self) -> Vec<Arc<Mutex<dyn FrameProcessorTrait>>>;
+            fn link(&mut self, next: Arc<Mutex<dyn FrameProcessorTrait>>);
+            fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
+            fn name(&self) -> &str;
+        }
     }
 
     async fn cancel_task(
@@ -403,9 +404,9 @@ impl FrameProcessorTrait for BaseInputTransport {
         self.frame_processor.setup_all_processors(setup).await
     }
 
-    async fn cleanup_all_processors(&self) -> Result<(), String> {
-        self.frame_processor.cleanup_all_processors().await
-    }
+    // async fn cleanup_all_processors(&self) -> Result<(), String> {
+    //     self.frame_processor.cleanup_all_processors().await
+    // }
 
     async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
         self.frame_processor.push_frame(frame, direction).await

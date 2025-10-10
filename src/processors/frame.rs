@@ -100,21 +100,6 @@ pub struct FrameProcessorSetup {
     pub task_timeout: Option<Duration>,
 }
 
-// Main frame processor trait
-#[async_trait]
-// Core frame processing trait for actual frame processing logic
-pub trait FrameProcessorCore: Send + Sync {
-    async fn process_frame(
-        &mut self,
-        frame: FrameType,
-        direction: FrameDirection,
-    ) -> Result<(), String>;
-    fn name(&self) -> &str;
-    fn can_generate_metrics(&self) -> bool {
-        false
-    }
-}
-
 // Main frame processor trait that includes all frame processor functionality
 #[async_trait]
 pub trait FrameProcessorTrait: Send + Sync {
@@ -123,7 +108,7 @@ pub trait FrameProcessorTrait: Send + Sync {
     fn name(&self) -> &str;
     fn is_started(&self) -> bool;
     fn is_cancelling(&self) -> bool;
-
+    fn can_generate_metrics(&self) -> bool;
     // Configuration methods
     fn set_allow_interruptions(&mut self, allow: bool);
     fn set_enable_metrics(&mut self, enable: bool);
@@ -133,26 +118,17 @@ pub trait FrameProcessorTrait: Send + Sync {
     fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
 
     // Processor management
-    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>);
+    fn add_processor(&mut self, processor: Arc<Mutex<dyn FrameProcessorTrait>>);
     fn clear_processors(&mut self);
     fn is_compound_processor(&self) -> bool;
     fn processor_count(&self) -> usize;
-    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>>;
-    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>>;
-    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
+    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<dyn FrameProcessorTrait>>>;
+    fn processors(&self) -> Vec<Arc<Mutex<dyn FrameProcessorTrait>>>;
+    fn link(&mut self, next: Arc<Mutex<dyn FrameProcessorTrait>>);
 
     // Interruption strategy
     fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
 
-    // Task management
-    async fn create_task<F, Fut>(
-        &self,
-        future: F,
-        name: Option<String>,
-    ) -> Result<TaskHandle, String>
-    where
-        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static;
     async fn cancel_task(
         &self,
         task: &TaskHandle,
@@ -163,7 +139,7 @@ pub trait FrameProcessorTrait: Send + Sync {
     async fn get_metrics(&self) -> FrameProcessorMetrics;
     async fn setup(&mut self, setup: FrameProcessorSetup) -> Result<(), String>;
     async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String>;
-    async fn cleanup_all_processors(&self) -> Result<(), String>;
+    // async fn cleanup_all_processors(&self) -> Result<(), String>;
 
     // Frame processing
     async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String>;
@@ -186,10 +162,6 @@ pub trait FrameProcessorTrait: Send + Sync {
         frame: FrameType,
         direction: FrameDirection,
     ) -> Result<(), String>;
-
-    fn can_generate_metrics(&self) -> bool {
-        false
-    }
 }
 
 // Interruption strategy trait
@@ -237,8 +209,8 @@ pub struct FrameProcessor {
     name: String,
 
     // Pipeline links (_prev and _next in Python)
-    prev: Option<Arc<Mutex<FrameProcessor>>>,
-    next: Option<Arc<Mutex<FrameProcessor>>>,
+    prev: Option<Arc<Mutex<dyn FrameProcessorTrait>>>,
+    next: Option<Arc<Mutex<dyn FrameProcessorTrait>>>,
 
     // Configuration (matching Python properties)
     enable_direct_mode: bool,
@@ -279,12 +251,8 @@ pub struct FrameProcessor {
 
     // Metrics (matching Python _metrics)
     metrics: Arc<Mutex<FrameProcessorMetrics>>,
-
-    // Custom processor implementation
-    processor_impl: Option<Box<dyn FrameProcessorCore>>,
-
     // Sub-processors for compound processors (pipelines, parallel pipelines)
-    processors: Vec<Arc<Mutex<FrameProcessor>>>,
+    // processors: Vec<Arc<Mutex<dyn FrameProcessorTrait>>>,
 }
 
 impl fmt::Display for FrameProcessor {
@@ -328,8 +296,7 @@ impl FrameProcessor {
             high_counter: AtomicU64::new(0),
             low_counter: AtomicU64::new(0),
             metrics: Arc::new(Mutex::new(metrics)),
-            processor_impl: None,
-            processors: Vec::new(),
+            // processors: Vec::new(),
         }
     }
 
@@ -344,39 +311,39 @@ impl FrameProcessor {
     // }
 
     /// Create a new compound processor (pipeline or parallel pipeline)
-    pub fn new_compound(
-        name: String,
-        task_manager: Arc<TaskManager>,
-        processors: Vec<Arc<Mutex<FrameProcessor>>>,
-    ) -> Self {
-        let mut processor = Self::new(name, task_manager);
-        processor.processors = processors;
-        processor
-    }
+    // pub fn new_compound(
+    //     name: String,
+    //     task_manager: Arc<TaskManager>,
+    //     processors: Vec<Arc<Mutex<FrameProcessor>>>,
+    // ) -> Self {
+    //     let mut processor = Self::new(name, task_manager);
+    //     processor.processors = processors;
+    //     processor
+    // }
 
     /// Create a pipeline processor with automatic linking
-    pub fn new_pipeline(
-        name: String,
-        task_manager: Arc<TaskManager>,
-        processors: Vec<Arc<Mutex<FrameProcessor>>>,
-    ) -> Self {
-        // Link processors in sequence
-        for i in 0..processors.len().saturating_sub(1) {
-            let current = processors[i].clone();
-            let next = processors[i + 1].clone();
+    // pub fn new_pipeline(
+    //     name: String,
+    //     task_manager: Arc<TaskManager>,
+    //     processors: Vec<Arc<Mutex<FrameProcessor>>>,
+    // ) -> Self {
+    //     // Link processors in sequence
+    //     for i in 0..processors.len().saturating_sub(1) {
+    //         let current = processors[i].clone();
+    //         let next = processors[i + 1].clone();
 
-            // Note: This is a simplified version. In practice, you'd want to handle
-            // the linking more carefully to avoid potential deadlocks
-            tokio::spawn(async move {
-                let mut current_guard = current.lock().await;
-                current_guard.link(next);
-            });
-        }
+    //         // Note: This is a simplified version. In practice, you'd want to handle
+    //         // the linking more carefully to avoid potential deadlocks
+    //         tokio::spawn(async move {
+    //             let mut current_guard = current.lock().await;
+    //             current_guard.link(next);
+    //         });
+    //     }
 
-        let mut processor = Self::new(name, task_manager);
-        processor.processors = processors;
-        processor
-    }
+    //     let mut processor = Self::new(name, task_manager);
+    //     processor.processors = processors;
+    //     processor
+    // }
 
     // Setters matching Python properties
     pub fn set_clock(&mut self, clock: Arc<dyn BaseClock>) {
@@ -424,51 +391,43 @@ impl FrameProcessor {
         self.metrics.lock().await.clone()
     }
 
-    pub fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>> {
-        &self.processors
+    pub fn processors(&self) -> Vec<Arc<Mutex<dyn FrameProcessorTrait>>> {
+        unimplemented!()
     }
 
     /// Add a sub-processor to this processor (for compound processors)
-    pub fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>) {
-        self.processors.push(processor);
+    pub fn add_processor(&mut self, _processor: Arc<Mutex<dyn FrameProcessorTrait>>) {
+        unimplemented!()
     }
 
     /// Remove all sub-processors
     pub fn clear_processors(&mut self) {
-        self.processors.clear();
+        unimplemented!()
     }
 
     /// Check if this is a compound processor (has sub-processors)
     pub fn is_compound_processor(&self) -> bool {
-        !self.processors.is_empty()
+        false
     }
 
     /// Get the number of sub-processors
     pub fn processor_count(&self) -> usize {
-        self.processors.len()
+        0
     }
 
     /// Get a specific sub-processor by index
-    pub fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>> {
-        self.processors.get(index)
+    pub fn get_processor(&self, _index: usize) -> Option<&Arc<Mutex<dyn FrameProcessorTrait>>> {
+        unimplemented!()
     }
 
     /// Setup all sub-processors with the same configuration
-    pub async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String> {
-        for processor in &self.processors {
-            let mut proc_guard = processor.lock().await;
-            proc_guard.setup(setup.clone()).await?;
-        }
-        Ok(())
+    pub async fn setup_all_processors(&self, _setup: FrameProcessorSetup) -> Result<(), String> {
+        unimplemented!()
     }
 
     /// Cleanup all sub-processors
     pub async fn cleanup_all_processors(&self) -> Result<(), String> {
-        for processor in &self.processors {
-            let mut proc_guard = processor.lock().await;
-            proc_guard.cleanup().await?;
-        }
-        Ok(())
+        unimplemented!()
     }
 
     /// Return the list of entry processors for this processor.
@@ -481,22 +440,23 @@ impl FrameProcessor {
     /// Returns:
     ///     The list of entry processors.
     pub fn entry_processors(&self) -> Vec<Arc<Mutex<FrameProcessor>>> {
-        if self.processors.is_empty() {
-            // Non-compound processors return empty list
-            Vec::new()
-        } else {
-            // For compound processors, the entry processor is typically the first one
-            // For pipelines, this would be the first processor in the chain
-            // For parallel pipelines, this could be all processors that don't have predecessors
-            vec![self.processors[0].clone()]
-        }
+        // if self.processors.is_empty() {
+        //     // Non-compound processors return empty list
+        //     Vec::new()
+        // } else {
+        //     // For compound processors, the entry processor is typically the first one
+        //     // For pipelines, this would be the first processor in the chain
+        //     // For parallel pipelines, this could be all processors that don't have predecessors
+        //     vec![self.processors[0].clone()]
+        // }
+        Vec::new()
     }
 
-    pub fn next(&self) -> Option<Arc<Mutex<FrameProcessor>>> {
+    pub fn next(&self) -> Option<Arc<Mutex<dyn FrameProcessorTrait>>> {
         self.next.clone()
     }
 
-    pub fn previous(&self) -> Option<Arc<Mutex<FrameProcessor>>> {
+    pub fn previous(&self) -> Option<Arc<Mutex<dyn FrameProcessorTrait>>> {
         self.prev.clone()
     }
 
@@ -617,7 +577,7 @@ impl FrameProcessor {
         Ok(())
     }
 
-    pub fn link(&mut self, next: Arc<Mutex<FrameProcessor>>) {
+    pub fn link(&mut self, next: Arc<Mutex<dyn FrameProcessorTrait>>) {
         self.next = Some(next.clone());
         // Set the previous link on the next processor
         // Note: This would require more complex handling in a real implementation
@@ -682,7 +642,7 @@ impl FrameProcessor {
         callback: Option<FrameCallback>,
     ) -> Result<(), String> {
         // Process the frame.
-        match self.process_frame_impl(frame.clone(), direction).await {
+        match self.process_frame(frame.clone(), direction).await {
             Ok(_) => {
                 // If this frame has an associated callback, call it now.
                 if let Some(callback) = callback {
@@ -701,7 +661,7 @@ impl FrameProcessor {
 
     /// Internal frame processing implementation
     /// This corresponds to Python's process_frame method
-    async fn process_frame_impl(
+    async fn process_frame(
         &mut self,
         frame: FrameType,
         direction: FrameDirection,
@@ -746,37 +706,8 @@ impl FrameProcessor {
                 );
                 // Handle error frame logic here
             }
-            // TODO: Add handling for StartInterruptionFrame when it's added to FrameType enum
-            // For now, this would be handled in the default case:
-            // FrameType::StartInterruption(_) => {
-            //     self.start_interruption().await?;
-            //     self.stop_all_metrics().await?;
-            // }
-            // TODO: Add handling for other frame types like:
-            // - StopInterruptionFrame (resume after interruption)
-            // - FrameProcessorPauseFrame/FrameProcessorPauseUrgentFrame (pause processing)
-            // - FrameProcessorResumeFrame/FrameProcessorResumeUrgentFrame (resume processing)
-            // These would correspond to additional frame types in the FrameType enum
             _ => {
-                log::debug!("{}: Processing frame {}", self.name, frame.name());
-
-                // Check if this is a StartInterruptionFrame by name (until proper enum variant exists)
-                if frame.name() == "StartInterruptionFrame" {
-                    log::debug!("{}: Processing StartInterruptionFrame", self.name);
-                    self.start_interruption().await?;
-                    self.stop_all_metrics().await?;
-                } else {
-                    // Handle other frame types or delegate to custom processor
-                    if let Some(_processor_impl) = &self.processor_impl {
-                        // Note: This would require making processor_impl mutable or using interior mutability
-                        // For now, we'll just log that we would call the custom processor
-                        log::debug!(
-                            "{}: Would call custom processor for frame {}",
-                            self.name,
-                            frame.name()
-                        );
-                    }
-                }
+                unimplemented!("Frame type handling not implemented yet");
             }
         }
 
@@ -887,7 +818,7 @@ impl FrameProcessor {
                     if let Some(observer) = &self.observer {
                         let next_guard = next.lock().await;
                         observer
-                            .on_push_frame(&self.name, &next_guard.name, &frame, direction)
+                            .on_push_frame(&self.name, &next_guard.name(), &frame, direction)
                             .await;
                         drop(next_guard);
                     }
@@ -901,7 +832,7 @@ impl FrameProcessor {
                     if let Some(observer) = &self.observer {
                         let prev_guard = prev.lock().await;
                         observer
-                            .on_push_frame(&self.name, &prev_guard.name, &frame, direction)
+                            .on_push_frame(&self.name, &prev_guard.name(), &frame, direction)
                             .await;
                         drop(prev_guard);
                     }
@@ -1215,32 +1146,32 @@ impl FrameProcessorTrait for FrameProcessor {
     }
 
     // Processor management
-    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>) {
-        self.processors.push(processor);
+    fn add_processor(&mut self, processor: Arc<Mutex<dyn FrameProcessorTrait>>) {
+        self.add_processor(processor);
     }
 
     fn clear_processors(&mut self) {
-        self.processors.clear();
+        self.clear_processors();
     }
 
     fn is_compound_processor(&self) -> bool {
-        !self.processors.is_empty()
+        self.is_compound_processor()
     }
 
     fn processor_count(&self) -> usize {
-        self.processors.len()
+        self.processor_count()
     }
 
-    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>> {
-        self.processors.get(index)
+    fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<dyn FrameProcessorTrait>>> {
+        self.get_processor(index)
     }
 
-    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>> {
-        &self.processors
+    fn processors(&self) -> Vec<Arc<Mutex<dyn FrameProcessorTrait>>> {
+        self.processors()
     }
 
-    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>) {
-        self.next = Some(next);
+    fn link(&mut self, next: Arc<Mutex<dyn FrameProcessorTrait>>) {
+        self.link(next);
     }
 
     // Interruption strategy
@@ -1249,26 +1180,6 @@ impl FrameProcessorTrait for FrameProcessor {
     }
 
     // Task management
-    async fn create_task<F, Fut>(
-        &self,
-        future: F,
-        name: Option<String>,
-    ) -> Result<TaskHandle, String>
-    where
-        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        let task_name = if let Some(name) = name {
-            format!("{}::{}", self, name)
-        } else {
-            format!("{}::task", self)
-        };
-
-        self.task_manager
-            .create_task(task_name, future, None)
-            .await
-            .map_err(|e| format!("Failed to create task: {:?}", e))
-    }
 
     async fn cancel_task(
         &self,
@@ -1297,20 +1208,20 @@ impl FrameProcessorTrait for FrameProcessor {
     }
 
     async fn setup_all_processors(&self, setup: FrameProcessorSetup) -> Result<(), String> {
-        for processor in &self.processors {
+        for processor in &self.processors() {
             let mut proc_guard = processor.lock().await;
             proc_guard.setup(setup.clone()).await?;
         }
         Ok(())
     }
 
-    async fn cleanup_all_processors(&self) -> Result<(), String> {
-        for processor in &self.processors {
-            let mut proc_guard = processor.lock().await;
-            proc_guard.cleanup().await?;
-        }
-        Ok(())
-    }
+    // async fn cleanup_all_processors(&self) -> Result<(), String> {
+    //     for processor in &self.processors() {
+    //         let mut proc_guard = processor.lock().await;
+    //         proc_guard.cleanup().await?;
+    //     }
+    //     Ok(())
+    // }
 
     // Frame processing
     async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
@@ -1380,14 +1291,11 @@ impl FrameProcessorTrait for FrameProcessor {
         frame: FrameType,
         direction: FrameDirection,
     ) -> Result<(), String> {
-        // Default implementation processes the frame through the pipeline
-        if let Some(processor_impl) = &mut self.processor_impl {
-            // If we have a processor implementation, delegate to it
-            processor_impl.process_frame(frame, direction).await
-        } else {
-            // Default processing - just pass frame downstream
-            self.push_frame(frame, direction).await
-        }
+        self.process_frame(frame, direction).await
+    }
+
+    fn can_generate_metrics(&self) -> bool {
+        self.can_generate_metrics()
     }
 }
 
@@ -1483,7 +1391,7 @@ impl FrameProcessorTrait for Arc<Mutex<FrameProcessor>> {
     }
 
     // Processor management
-    fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>) {
+    fn add_processor(&mut self, processor: Arc<Mutex<dyn FrameProcessorTrait>>) {
         let arc_clone = self.clone();
         tokio::spawn(async move {
             let mut fp = arc_clone.lock().await;
@@ -1519,20 +1427,19 @@ impl FrameProcessorTrait for Arc<Mutex<FrameProcessor>> {
         })
     }
 
-    fn get_processor(&self, _index: usize) -> Option<&Arc<Mutex<FrameProcessor>>> {
+    fn get_processor(&self, _index: usize) -> Option<&Arc<Mutex<dyn FrameProcessorTrait>>> {
         // This can't work with async mutex as we can't return a reference
         // The lifetime of the returned reference would be tied to the lock guard
         // which would be dropped immediately
         None
     }
 
-    fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>> {
+    fn processors(&self) -> Vec<Arc<Mutex<dyn FrameProcessorTrait>>> {
         // Same issue as get_processor - can't return references from async mutex
-        static EMPTY: Vec<Arc<Mutex<FrameProcessor>>> = Vec::new();
-        &EMPTY
+        Vec::new()
     }
 
-    fn link(&mut self, next: Arc<Mutex<FrameProcessor>>) {
+    fn link(&mut self, next: Arc<Mutex<dyn FrameProcessorTrait>>) {
         let arc_clone = self.clone();
         tokio::spawn(async move {
             let mut processor = arc_clone.lock().await;
@@ -1547,20 +1454,6 @@ impl FrameProcessorTrait for Arc<Mutex<FrameProcessor>> {
             let mut processor = arc_clone.lock().await;
             processor.add_interruption_strategy(strategy);
         });
-    }
-
-    // Task management
-    async fn create_task<F, Fut>(
-        &self,
-        future: F,
-        name: Option<String>,
-    ) -> Result<TaskHandle, String>
-    where
-        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        let processor = self.lock().await;
-        processor.create_task(future, name).await
     }
 
     async fn cancel_task(
@@ -1588,10 +1481,10 @@ impl FrameProcessorTrait for Arc<Mutex<FrameProcessor>> {
         processor.setup_all_processors(setup).await
     }
 
-    async fn cleanup_all_processors(&self) -> Result<(), String> {
-        let processor = self.lock().await;
-        processor.cleanup_all_processors().await
-    }
+    // async fn cleanup_all_processors(&self) -> Result<(), String> {
+    //     let processor = self.lock().await;
+    //     processor.cleanup_all_processors().await
+    // }
 
     // Frame processing
     async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
@@ -1629,5 +1522,15 @@ impl FrameProcessorTrait for Arc<Mutex<FrameProcessor>> {
     ) -> Result<(), String> {
         let mut processor = self.lock().await;
         processor.process_frame(frame, direction).await
+    }
+
+    fn can_generate_metrics(&self) -> bool {
+        let arc_clone = self.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let processor = arc_clone.lock().await;
+                processor.can_generate_metrics()
+            })
+        })
     }
 }

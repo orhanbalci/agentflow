@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 
 use crate::processors::frame::{
-    BaseInterruptionStrategy, FrameCallback, FrameDirection, FrameProcessor, FrameProcessorMetrics,
+    BaseInterruptionStrategy, FrameCallback, FrameDirection, FrameProcessorMetrics,
     FrameProcessorSetup, FrameProcessorTrait,
 };
 use crate::task_manager::{TaskHandle, TaskManager};
@@ -292,36 +292,8 @@ impl LocalAudioInputTransport {
     pub fn is_running(&self) -> bool {
         self.is_running.load(Ordering::Relaxed)
     }
-}
 
-#[async_trait]
-impl FrameProcessorTrait for LocalAudioInputTransport {
-    // Use delegate macro for all sync methods
-    delegate! {
-        to self.base {
-            fn id(&self) -> u64;
-            fn name(&self) -> &str;
-            fn is_started(&self) -> bool;
-            fn is_cancelling(&self) -> bool;
-            fn set_allow_interruptions(&mut self, allow: bool);
-            fn set_enable_metrics(&mut self, enable: bool);
-            fn set_enable_usage_metrics(&mut self, enable: bool);
-            fn set_report_only_initial_ttfb(&mut self, report: bool);
-            fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
-            fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
-            fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>);
-            fn clear_processors(&mut self);
-            fn is_compound_processor(&self) -> bool;
-            fn processor_count(&self) -> usize;
-            fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>>;
-            fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>>;
-            fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
-            fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
-        }
-    }
-
-    // Async methods - delegate to base
-    async fn create_task<F, Fut>(
+    async fn _create_task<F, Fut>(
         &self,
         future: F,
         name: Option<String>,
@@ -332,6 +304,36 @@ impl FrameProcessorTrait for LocalAudioInputTransport {
     {
         self.base.create_task(future, name).await
     }
+}
+
+#[async_trait]
+impl FrameProcessorTrait for LocalAudioInputTransport {
+    // Use delegate macro for all sync methods
+    delegate! {
+        to self.base {
+            fn can_generate_metrics(&self) -> bool;
+            fn id(&self) -> u64;
+            fn name(&self) -> &str;
+            fn is_started(&self) -> bool;
+            fn is_cancelling(&self) -> bool;
+            fn set_allow_interruptions(&mut self, allow: bool);
+            fn set_enable_metrics(&mut self, enable: bool);
+            fn set_enable_usage_metrics(&mut self, enable: bool);
+            fn set_report_only_initial_ttfb(&mut self, report: bool);
+            fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
+            fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
+            fn add_processor(&mut self, processor: Arc<Mutex<dyn FrameProcessorTrait>>);
+            fn clear_processors(&mut self);
+            fn is_compound_processor(&self) -> bool;
+            fn processor_count(&self) -> usize;
+            fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<dyn FrameProcessorTrait>>>;
+            fn processors(&self) -> Vec<Arc<Mutex<dyn FrameProcessorTrait>>>;
+            fn link(&mut self, next: Arc<Mutex<dyn FrameProcessorTrait>>);
+            fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
+        }
+    }
+
+    // Async methods - delegate to base
 
     async fn cancel_task(
         &self,
@@ -353,9 +355,9 @@ impl FrameProcessorTrait for LocalAudioInputTransport {
         self.base.setup_all_processors(setup).await
     }
 
-    async fn cleanup_all_processors(&self) -> Result<(), String> {
-        self.base.cleanup_all_processors().await
-    }
+    // async fn cleanup_all_processors(&self) -> Result<(), String> {
+    //     self.base.cleanup_all_processors().await
+    // }
 
     async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
         self.base.push_frame(frame, direction).await

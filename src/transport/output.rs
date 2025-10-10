@@ -56,7 +56,6 @@ struct BaseOutputTransportInner {
 pub struct BaseOutputTransport {
     inner: Arc<Mutex<BaseOutputTransportInner>>,
     pub frame_processor: Arc<Mutex<FrameProcessor>>,
-    task_manager: Arc<TaskManager>,
 }
 
 impl BaseOutputTransport {
@@ -81,7 +80,6 @@ impl BaseOutputTransport {
         Arc::new(Self {
             inner: Arc::new(Mutex::new(inner)),
             frame_processor: Arc::new(Mutex::new(frame_processor)),
-            task_manager,
         })
     }
 
@@ -653,13 +651,30 @@ impl BaseOutputTransport {
         );
         Ok(output_data)
     }
+
+    // Async methods must be implemented manually as delegate macro doesn't support async traits
+    pub async fn create_task<F, Fut>(
+        &self,
+        future: F,
+        name: Option<String>,
+    ) -> Result<TaskHandle, String>
+    where
+        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.frame_processor
+            .lock()
+            .await
+            .create_task(future, name)
+            .await
+    }
 }
 
-// Implement the FrameProcessornterface trait for BaseOutputTransport
 #[async_trait]
 impl FrameProcessorTrait for BaseOutputTransport {
     delegate! {
         to self.frame_processor {
+            fn can_generate_metrics(&self) -> bool;
             fn id(&self) -> u64;
             fn name(&self) -> &str;
             fn is_started(&self) -> bool;
@@ -670,13 +685,13 @@ impl FrameProcessorTrait for BaseOutputTransport {
             fn set_report_only_initial_ttfb(&mut self, report: bool);
             fn set_clock(&mut self, clock: Arc<dyn BaseClock>);
             fn set_task_manager(&mut self, task_manager: Arc<TaskManager>);
-            fn add_processor(&mut self, processor: Arc<Mutex<FrameProcessor>>);
+            fn add_processor(&mut self, processor: Arc<Mutex<dyn FrameProcessorTrait>>);
             fn clear_processors(&mut self);
             fn is_compound_processor(&self) -> bool;
             fn processor_count(&self) -> usize;
-            fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<FrameProcessor>>>;
-            fn processors(&self) -> &Vec<Arc<Mutex<FrameProcessor>>>;
-            fn link(&mut self, next: Arc<Mutex<FrameProcessor>>);
+            fn get_processor(&self, index: usize) -> Option<&Arc<Mutex<dyn FrameProcessorTrait>>>;
+            fn processors(&self) -> Vec<Arc<Mutex<dyn FrameProcessorTrait>>>;
+            fn link(&mut self, next: Arc<Mutex<dyn FrameProcessorTrait>>);
             fn add_interruption_strategy(&mut self, strategy: Arc<dyn BaseInterruptionStrategy>);
         }
     }
@@ -803,19 +818,6 @@ impl FrameProcessorTrait for BaseOutputTransport {
         Ok(())
     }
 
-    // Async methods must be implemented manually as delegate macro doesn't support async traits
-    async fn create_task<F, Fut>(
-        &self,
-        future: F,
-        name: Option<String>,
-    ) -> Result<TaskHandle, String>
-    where
-        F: FnOnce(crate::task_manager::TaskContext) -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        self.frame_processor.create_task(future, name).await
-    }
-
     async fn cancel_task(
         &self,
         task: &TaskHandle,
@@ -836,9 +838,9 @@ impl FrameProcessorTrait for BaseOutputTransport {
         self.frame_processor.setup_all_processors(setup).await
     }
 
-    async fn cleanup_all_processors(&self) -> Result<(), String> {
-        self.frame_processor.cleanup_all_processors().await
-    }
+    // async fn cleanup_all_processors(&self) -> Result<(), String> {
+    //     self.frame_processor.cleanup_all_processors().await
+    // }
 
     async fn push_frame(&self, frame: FrameType, direction: FrameDirection) -> Result<(), String> {
         self.frame_processor.push_frame(frame, direction).await

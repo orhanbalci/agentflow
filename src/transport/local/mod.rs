@@ -16,12 +16,13 @@
 //! ```rust,no_run
 //! use agentflow::transport::local::{LocalAudioTransport, LocalAudioTransportParams};
 //! use agentflow::transport::params::TransportParams;
-//! use agentflow::task_manager::TaskManager;
+//! use agentflow::task_manager::{TaskManager, TaskManagerConfig};
 //! use agentflow::StartFrame;
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let task_manager = Arc::new(TaskManager::new());
+//! let config = TaskManagerConfig::default();
+//! let task_manager = Arc::new(TaskManager::new(config));
 //!
 //! // Create transport parameters
 //! let base_params = TransportParams::default();
@@ -30,7 +31,7 @@
 //!
 //! // Create and start the transport
 //! let transport = LocalAudioTransport::new(local_params, task_manager);
-//! let start_frame = StartFrame::new(16000, 1, 16000, 1);
+//! let start_frame = StartFrame::new().with_sample_rates(16000, 16000);
 //! transport.start(&start_frame).await?;
 //!
 //! // ... use the transport for audio I/O ...
